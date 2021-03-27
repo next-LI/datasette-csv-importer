@@ -22,7 +22,7 @@ from .git_utils import write_csv_to_repo
 # REPO_DIR
 
 
-DEFAULT_PERM=False
+DEFAULT_PERM=True
 
 
 @hookimpl
