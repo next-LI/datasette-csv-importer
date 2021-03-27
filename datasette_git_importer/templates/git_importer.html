@@ -164,13 +164,15 @@ function uploadFile(file) {
           } else {
             setTimeout(pollForProgress, 1000);
           }
+        }).catch((e) => {
+          console.log("Error polling", e);
+          setTimeout(pollForProgress, 1000);
         });
         /* TODO: catch error above */
       }
       pollForProgress();
     } else if (xhr.readyState == 4 && xhr.status != 200) {
       console.error("Error!", xhr.status, xhr.responseText);
-      setTimeout(pollForProgress, 1000);
     }
   });
 
