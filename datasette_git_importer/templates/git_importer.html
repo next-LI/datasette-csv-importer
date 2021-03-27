@@ -166,7 +166,10 @@ function uploadFile(file) {
           }
         }).catch((e) => {
           console.log("Error polling", e);
-          setTimeout(pollForProgress, 1000);
+          /*setTimeout(pollForProgress, 1000);*/
+          if (e.message.startsWith("JSON.parse")) {
+            document.location = data.url;
+          }
         });
         /* TODO: catch error above */
       }
