@@ -14,12 +14,12 @@ from .actions_utils import find_run
 from .git_utils import write_csv_to_repo
 
 
-# Environment variables used:
-# GITHUB_USER
-# GITHUB_TOKEN
-# REPO_OWNER
-# REPO_NAME
-# REPO_DIR
+# Plugin secrets used:
+# github_user
+# github_token
+# repo_owner
+# repo_name
+# repo_dir (defaults to /tmp/nextli-datasette)
 
 
 DEFAULT_PERM=False
