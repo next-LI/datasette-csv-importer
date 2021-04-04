@@ -36,5 +36,5 @@ setup(
     extras_require={
         "test": ["pytest", "pytest-asyncio", "asgiref", "httpx", "asgi-lifespan"]
     },
-    package_data={"datasette_git_importer": ["templates/*.html"]},
+    package_data={"datasette_git_importer": ["static/*", "templates/*.html"]},
 )

@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Upload and configure a CSV{% endblock %}
+
+{% block extra_head %}
+<style type="text/css">
+#file-drop {
+    border: 2px dashed #aaa;
+    border-radius: 1em;
+    width: 80%;
+    font-family: sans-serif;
+    padding: 1em;
+    box-sizing: border-box;
+}
+#file-drop.highlight {
+    border-color: purple;
+    background-color: #8000801f;
+}
+#file-drop label {
+    margin: 0;
+    padding: 1em;
+    font-style: italic;
+    text-align: center;
+    display: block;
+    width: 100%;
+}
+input[type=file] {
+    display: none;
+}
+progress {
+    -webkit-appearance: none;
+    appearance: none;
+    border: none;
+    width: 80%;
+    height: 2em;
+    margin-top: 1em;
+}
+progress::-webkit-progress-bar {
+    background-color: #ddd;
+}
+progress::-webkit-progress-value {
+    background-color: #124d77;
+}
+.content {
+  max-width: 800px;
+  min-width: 300px;
+  margin: 0 auto;
+  padding: 50px;
+}
+</style>
+<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
+{% endblock %}
+
+{% block content %}
+<div>
+  <h1>Upload and configure a CSV</h1>
+  <p>CSV will be converted into a database file.</p>
+  <form action="/-/git-importer" method="post" enctype="multipart/form-data">
+    <div id="file-drop">
+      <input type="file" name="csv" id="csvUpload">
+      <label for="csvUpload">Select a file to upload or drag and drop one here</label>
+    </div>
+    <p style="margin-bottom: -0.8em;font-size: 0.8em; display: none;" id="progress-label">Importing...</p>
+    <progress class="progress" value="0" max="100">Uploading...</progress>
+  </form>
+
+  <div data-widget-host="habitat">
+    <script type="text/props">
+      { "color": "red"}
+    </script>
+  </div>
+</div>
+
+<script async src="/-/static-plugins/datasette-git-importer/bundle.js"></script>
+<script type="text/javascript" src="/-/static-plugins/datasette-git-importer/uploadHandler.js"></script>
+{% endblock %}

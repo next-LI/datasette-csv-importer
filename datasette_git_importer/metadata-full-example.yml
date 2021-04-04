@@ -1,0 +1,59 @@
+{
+  "databases": {
+    "database name": {
+      # optional, where this data came from
+      "source": "Alternative source",
+      # optional, URL to info about source
+      "source_url": "http://example.com/",
+      # table-speicific config
+      "tables": {
+        "table name": {
+          # tables can be hidden using this
+          "hidden": false
+          # you can also nest down a layer for views
+          "name of view": {},
+          # this controls which column is used as the link to the detail view
+          "label_column": "column name",
+          # page size
+          "size": 10,
+          # you can only use one of the two
+          "sort": "Column name",
+          "sort_desc": "Column Name",
+          # columns available for sorting, this is restrictive and
+          # leaving this option out allows all columns to be sorted
+          "sortable_columns": [
+              "height",
+              "weight"
+          ],
+          # facets can be turned on by default here (they can always be
+          # enabled via URL query param, unless disabled)
+          "facets": ["column name"]
+          # a full list of units is available in metadata-units-list.txt
+          "units": {
+            "column name": "metres",
+            "column name 2": "Hz"
+          },
+          "description_html": "Custom <em>table</em> description",
+          "license": "CC BY 3.0 US",
+          "license_url": "https://creativecommons.org/licenses/by/3.0/us/",
+          # canned queries
+          "queries": {
+            "canned query name": {
+              # simple static SQL example
+              "sql": "select column_name from table_name",
+              # example with params (text is the param here)
+              "sql": "select neighborhood, facet_cities.name, state\nfrom facetable\n  join facet_cities on facetable.city_id = facet_cities.id\nwhere neighborhood like '%' || :text || '%'\norder by neighborhood",
+              # cross-DB canned query example
+              "sql": "select  'fixtures' as database, * from  [fixtures].sqlite_master union select  'extra_database' as database, * from  [extra_database].sqlite_master",
+              # some plugins accept additional config via the URL hash, this sets the
+              # default hash "fragment" to use
+              "fragment": "fragment-goes-here",
+              "title": "Optional display name of canned query",
+              "description": "Optional description of canned query"
+            }
+          }
+        }
+      }
+    }
+  }
+}
