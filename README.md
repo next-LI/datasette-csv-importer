@@ -8,6 +8,16 @@ Configuration comes from a parsed version of the CLI tool's `--help` output.
 
 ## Installation
 
+This repository uses submodules:
+
+    git clone --recursive https://github.com/brandonrobertz/datasette-csv-importer
+
+If you've already cloned non-recursively you can run this to get the submodules:
+
+    git submodule update --init
+
+Then just install like any normal Datasette plugin:
+
     python setup.py install
 
 ## Usage
