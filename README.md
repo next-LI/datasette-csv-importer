@@ -1,33 +1,25 @@
-# datasette-git-importer
+# datasette-csv-importer
 
-Datasette plugin for uploading CSV files, editing configuration and creating commits representing the changes.
+Datasette plugin for live-uploading CSV files with a user-friendly configuration UI.
 
-This plugin is based on the [datasette-upload-csvs](https://github.com/simonw/datasette-upload-csvs) plugin.
+This plugin was inspired by the [datasette-upload-csvs](https://github.com/simonw/datasette-upload-csvs)
+plugin and uses [CSVs-to-SQlite](https://github.com/simonw/csvs-to-sqlite) to actually perform the import.
+Configuration comes from a parsed version of the CLI tool's `--help` output.
 
 ## Installation
 
     python setup.py install
 
-## Configuration
-
-Plugin secrets used:
-
-    github_user - github user associated with token w/ access to repo
-    github_token - github token, gives access to below repo
-    repo_owner - owner of repository in github.com/{owner}/{name}.git
-    repo_name - name of repository in github.com/{owner}/{name}.git
-    repo_dir - where to checkout our repo, prior to building commits
-               (default: /tmp/nextli-datasette)
-
 ## Usage
 
-The plugin adds an interface at `/-/git-importer` for uploading a CSV file, setting meta configuration and pushing a commit to a specified repo.
+The plugin adds an interface at `/-/csv-import` for uploading a CSV file
+and modifying import configuration options like column types, full text
+fields, primary and foreign keys. A full list of configuration options
+comes from the [CSVs-to-SQlite](https://github.com/simonw/csvs-to-sqlite)
+tool used by this plugin.
 
 ## Development
 
-There's two parts to this plugin: a Preact app that builds the datasette template and the python backend code.
-
-If you don't want to mess with the frontend UI, just install the plugin like described above. If you do
-want to edit the UI, the Preact app is in `config-ed`. To build the component and update the datasette template,
-run `npm run build`. This will run the entire JS build process and will update the template file and static
-assets. Re-installing the plugin will push the changes to datasette.
+There's two parts to this plugin: converting the CSV importer CLI tool's arguments
+list to a JSON schema which renders a form (this is mostly done by hand and ends up
+in `templates/schema.json` and the webapp that does the actual import.

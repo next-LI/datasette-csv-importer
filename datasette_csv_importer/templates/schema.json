@@ -1,0 +1,96 @@
+{
+  "title": "CSVs-to_SQlite args",
+  "description": "CSVs-to-SQlite DB converter arguments",
+  "type": "object",
+  "properties": {
+    "--table": {
+      "type": "string",
+      "title": "Table name",
+      "description": "Table to use (instead of using CSV filename)",
+      "required": true
+    },
+    "--skip-errors": {
+      "type": "boolean",
+      "title": "Skip errors?",
+      "description": "Skip lines with too many fields instead of stopping the import"
+    },
+    "--replace-tables": {
+      "type": "boolean",
+      "title": "Replace table if exists?",
+      "description": "Replace tables if they already exist"
+    },
+    "--primary-key": {
+      "type": "string",
+      "title": "Primary key column(s)",
+      "description": "One or more columns to use as the primary key"
+    },
+    "--fts": {
+      "type": "string",
+      "title": "Full-text search columns",
+      "description": "One or more columns to use to populate a full-text index"
+    },
+    "--index": {
+      "type": "string",
+      "title": "Indexed columns",
+      "description": "Add index on this column (or a compound index with -i col1,col2)"
+    },
+    "--date": {
+      "type": "string",
+      "title": "Date columns",
+      "description": "One or more columns to parse into ISO formatted dates"
+    },
+    "--datetime": {
+      "type": "string",
+      "title": "Datetime columns",
+      "description": "One or more columns to parse into ISO formatted datetimes"
+    },
+    "--datetime-format": {
+      "type": "string",
+      "title": "Datetime format",
+      "description": "One or more custom date format strings to try when parsing dates/datetimes"
+    },
+    "--just-strings": {
+      "type": "boolean",
+      "title": "Just strings?",
+      "description": "Import all columns as text strings by default (and, if specified, still obey --shape, --date/datetime, and --datetime-format)"
+    },
+    "--filename-column": {
+      "type": "string",
+      "title": "Filename column",
+      "description": "Add a column with this name and populate with CSV file name"
+    },
+
+    "--separator": {
+      "type": "string",
+      "title": "CSV separator character",
+      "description": "Field separator in input .csv"
+    },
+    "--quoting": {
+      "type": "string",
+      "title": "Quoting style",
+      "description": "Control field quoting behavior per csv.QUOTE_* constants. Use one of QUOTE_MINIMAL (0), QUOTE_ALL (1), QUOTE_NONNUMERIC (2) or QUOTE_NONE (3)."
+    },
+
+    "--extract-column": {
+      "type": "string",
+      "title": "Extract column(s)",
+      "description": "One or more columns to 'extract' into a separate lookup table. If you pass a simple column name that column will be replaced with integer foreign key references to a new table of that name. You can customize the name of the table like so: state:States:state_name This will pull unique values from the 'state' column and use them to populate a new 'States' table, with an id column primary key and a state_name column containing the strings from the original column."
+    },
+    "--shape": {
+      "type": "string",
+      "title": "Custom table shape",
+      "description": "Custom shape for the DB table - format is csvcol:dbcol(TYPE),..."
+    },
+
+    "--no-index-fks": {
+      "type": "boolean",
+      "title": "No index foreign keys",
+      "description": "Skip adding index to foreign key columns created using --extract-column (default is to add them)"
+    },
+    "--no-fulltext-fks": {
+      "type": "boolean",
+      "title": "No fulltext fks",
+      "description": "Skip adding full-text index on values extracted using --extract-column (default is to add them)"
+    }
+  }
+}

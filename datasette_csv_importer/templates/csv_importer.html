@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}Upload a CSV to {{ database_name }}{% endblock %}
+
+{% block extra_head %}
+<style type="text/css">
+#file-drop {
+    border: 2px dashed #aaa;
+    border-radius: 1em;
+    width: 80%;
+    font-family: sans-serif;
+    padding: 1em;
+    box-sizing: border-box;
+}
+#file-drop.highlight {
+    border-color: purple;
+    background-color: #8000801f;
+}
+#file-drop label {
+    margin: 0;
+    padding: 1em;
+    font-style: italic;
+    text-align: center;
+    display: block;
+    width: 100%;
+}
+input[type=file] {
+    display: none;
+}
+progress {
+    -webkit-appearance: none;
+    appearance: none;
+    border: none;
+    width: 80%;
+    height: 2em;
+    margin-top: 1em;
+}
+progress::-webkit-progress-bar {
+    background-color: #ddd;
+}
+progress::-webkit-progress-value {
+    background-color: #124d77;
+}
+
+.importer-widget form input[type=submit],
+.importer-widget form button[type=button] {
+  font-size: unset;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="importer-widget">
+  <h1>Upload a CSV</h1>
+  <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+
+  <div id="progress-area" style="display: none">
+    <p style="margin-bottom: -0.8em;font-size: 0.8em; display: none;" id="progress-label">Uploading...</p>
+    <progress class="progress" value="0" max="100">Uploading...</progress>
+  </div>
+
+  <form id="file-form" action="/-/csv-importer" method="post" enctype="multipart/form-data">
+    <div id="file-drop">
+      <input type="file" name="csv" id="csvUpload">
+      <label for="csvUpload">Select a file to upload or drag and drop one here</label>
+    </div>
+    <input type="hidden" name="csrftoken" value="{{csrftoken()}}" />
+  </form>
+
+  <form id="import-config" action="/-/csv-importer" method="post">
+  </form>
+
+  <div id="completed" style="display: none">
+    <h2>Import Complete</h2>
+    <h3>Result: <span class="result-short"></span></h3>
+    <p class="result-text"></p>
+      <pre class="output" style="display: none"></pre>
+    <button onClick="startOver()">Try with different options?</button>
+  </div>
+</div>
+
+<script id="schema" type="application/json">{% include 'schema.json' %}</script>
+<script type="text/javascript" src="/-/static-plugins/datasette-csv-importer/jsonform/deps/jquery.min.js"></script>
+<script type="text/javascript" src="/-/static-plugins/datasette-csv-importer/jsonform/deps/underscore.js"></script>
+<!--<script type="text/javascript" src="/-/static-plugins/datasette-csv-importer/jsonform/deps/opt/jsv.js"></script>-->
+<script type="text/javascript" src="/-/static-plugins/datasette-csv-importer/jsonform/lib/jsonform.js"></script>
+<script type="text/javascript" src="/-/static-plugins/datasette-csv-importer/importer.js"></script>
+
+{% endblock %}

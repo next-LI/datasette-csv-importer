@@ -1,0 +1,3 @@
+[submodule "datasette_csv_importer/static/jsonform"]
+	path = datasette_csv_importer/static/jsonform
+	url = https://github.com/jsonform/jsonform
