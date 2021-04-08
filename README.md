@@ -20,6 +20,28 @@ Then just install like any normal Datasette plugin:
 
     python setup.py install
 
+It accepts the following configuration in your `metadata.json` file:
+
+    {
+      ... metadata.json ...
+      "plugins": {
+        "datasette-csv-importer": {
+          "status_table": "_csv_importer_progress_",
+          "status_database": "_internal",
+          "database_path": "/data"
+        },
+        ... the rest of your plugins configuration ...
+      }
+    }
+
+Details on the configuration:
+
+- `status_database` - name of the database that we're going to use to store import status. It defaults to the internal DB, `_internal`.
+- `status_table` - name of the table that we'll write import status rows to.
+- `database_path` - path to the directory that we'll use to write SQlite databases to. By default, the plugin will use the current working directory of the process running it.
+
+
+
 ## Usage
 
 The plugin adds an interface at `/-/csv-importer` for uploading a CSV file
@@ -27,6 +49,7 @@ and modifying import configuration options like column types, full text
 fields, primary and foreign keys. A full list of configuration options
 comes from the [CSVs-to-SQlite](https://github.com/simonw/csvs-to-sqlite)
 tool used by this plugin.
+
 
 ## Development
 
