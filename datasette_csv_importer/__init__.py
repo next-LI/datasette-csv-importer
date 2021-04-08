@@ -114,6 +114,23 @@ async def csv_importer_status(scope, receive, datasette, request):
 
 
 async def csv_importer(scope, receive, datasette, request):
+    """
+    CSV Importer initiates a CSV import using the CLI tool CSVs-to-SQlite.
+    Accepts HTTP POST with form data as follows:
+
+    `csv` should contain the CSV file to be imported
+
+    If `xhr` is set to `1` we will assume a JS client is running and this
+    endpoint will return JSON (as opposed to rendering a different HTML
+    template without `xhr` set to `1`).
+
+    A valid `csrftoken` needs to be provided.
+
+    Any form input starting with "-" are interpreted as arguments to
+    the CLI tool. Such arguments are considered single-toggle arguments
+    that don't use any parameters, so "--on true" will be interpreted
+    as running the tool with "--on".
+    """
     if not await datasette.permission_allowed(
         request.actor, "csv-importer", default=False
     ):
@@ -201,6 +218,7 @@ async def csv_importer(scope, receive, datasette, request):
         )
     await db.execute_write_fn(set_running)
 
+    # run the command, capture its output
     with tempfile.NamedTemporaryFile() as temp:
         temp.write(csv.file.read())
         temp.flush()
@@ -230,6 +248,7 @@ async def csv_importer(scope, receive, datasette, request):
             },
         )
     await db.execute_write_fn(set_refreshing)
+
     if basename not in datasette.databases:
         datasette.add_database(
             Database(datasette, path=outfile, is_mutable=True),

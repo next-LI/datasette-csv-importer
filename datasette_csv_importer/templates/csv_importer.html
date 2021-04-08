@@ -49,6 +49,12 @@ progress::-webkit-progress-value {
 </style>
 {% endblock %}
 
+{% block nav %}
+<p class="crumbs">
+  <a href="{{ urls.instance() }}">home</a>
+</p>
+{% endblock %}
+
 {% block content %}
 <div class="importer-widget">
   <h1>Upload a CSV</h1>
