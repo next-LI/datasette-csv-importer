@@ -1,4 +1,5 @@
 from datasette import hookimpl
+from datasette.database import Database
 from datasette.utils.asgi import Response, Forbidden
 from starlette.requests import Request
 from urllib.parse import quote_plus
@@ -7,6 +8,7 @@ import io
 import os
 import sqlite_utils
 import sys
+import tempfile
 import uuid
 
 
@@ -15,6 +17,7 @@ from csvs_to_sqlite.cli import cli as command
 
 DEFAULT_PERM=True
 STATUS_TABLE="_csv_importer_progress_"
+DBPATH="../data"
 
 
 @hookimpl
@@ -122,18 +125,25 @@ async def csv_importer(scope, receive, datasette, request):
 
     formdata = await starlette_request.form()
     print("formdata", formdata)
-    print("formdata.keys()", formdata.keys())
+    print("formdata.items()", formdata.items())
     print(dir(formdata))
     csv = formdata["csv"]
+    print("csv", csv)
+    print(dir(csv))
+
     # csv.file is a SpooledTemporaryFile. csv.filename is the filename
     filename = csv.filename
     basename = os.path.splitext(filename)[0]
+    outfile = os.path.join(DBPATH, f"{basename}.db")
+    print("CSV filename", filename)
+    print("basename", basename)
+    print("outfile", outfile)
 
     task_id = str(uuid.uuid4())
     print("Task ID", task_id)
 
     def insert_initial_record(conn):
-        print("Writing initial record", task_id)
+        print("Writing initial record for task ID", task_id)
         database = sqlite_utils.Database(conn)
         database[STATUS_TABLE].insert(
             {
@@ -144,26 +154,90 @@ async def csv_importer(scope, receive, datasette, request):
                 "completed": None,
                 "exitcode": -1,
                 "status": "in-progress",
-                "message": "Beginning import...",
+                "message": "Setting up import...",
                 "output": None,
             },
             pk="id",
             alter=True,
         )
-
+    print("Inserting initial record")
     await db.execute_write_fn(insert_initial_record)
-    print("Initial record inserted")
+
+    exitcode = -1
+    output = None
 
     def run_import(conn):
-        print("CSV filename", filename)
-        args = ["--help"]
-        # args = [*opts, *files, dbpath]
+        database = sqlite_utils.Database(conn)
+        database[STATUS_TABLE].update(
+            task_id,
+            {
+                "message": "Preparing import options...",
+            },
+        )
+    await db.execute_write_fn(run_import)
+
+    args = []
+    for key, value in formdata.items():
+        print(f"Formdata item: {key} => {value}")
+        if not key.startswith("-"):
+            continue
+        # this is a toggle/flag arg with no param
+        if value is True or value == "true":
+            args.append(key)
+            continue
+        if not value or value == "false":
+            continue
+        args.append(key)
+        args.append(value)
+
+    def set_running(conn):
+        database = sqlite_utils.Database(conn)
+        database[STATUS_TABLE].update(
+            task_id,
+            {
+                "message": "Running CSV import...",
+            },
+        )
+    await db.execute_write_fn(set_running)
+
+    with tempfile.NamedTemporaryFile() as temp:
+        temp.write(csv.file.read())
+        temp.flush()
+
+        args.append(temp.name)
+        args.append(outfile)
+
+        print("Running import with arguments", args)
+        # run the import command, capturing stdout
         with Capturing() as output:
             exitcode = command.main(
                 args=args, prog_name="cli", standalone_mode=False
             )
-            exitcode = int(exitcode)
-        message = "Import successful!" if exitcode == 0 else "Failure"
+            if exitcode is not None:
+                exitcode = int(exitcode)
+            # detect a failure to write DB where tool returns success code
+            # this makes it so we don't have to read the CLI output to
+            # figure out if the command succeeded or not
+            if not os.path.exists(outfile) and not exitcode:
+                exitcode = -2
+
+    def set_refreshing(conn):
+        database = sqlite_utils.Database(conn)
+        database[STATUS_TABLE].update(
+            task_id,
+            {
+                "message": "Refreshing databases list...",
+            },
+        )
+    await db.execute_write_fn(set_refreshing)
+    datasette.add_database(
+        Database(datasette, path=outfile, is_mutable=True)
+    )
+    await datasette.refresh_schemas()
+
+    def marking_complete(conn):
+        print("Exit code", exitcode)
+        message = "Import successful!" if not exitcode else "Failure"
         database = sqlite_utils.Database(conn)
         database[STATUS_TABLE].update(
             task_id,
@@ -175,8 +249,8 @@ async def csv_importer(scope, receive, datasette, request):
                 "output": "\n".join(output),
             },
         )
-
-    await db.execute_write_fn(run_import)
+    print("Import complete, marking status so...")
+    await db.execute_write_fn(marking_complete)
 
     if formdata.get("xhr"):
         print("Returning JSON")

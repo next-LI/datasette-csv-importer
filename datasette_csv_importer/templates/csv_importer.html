@@ -70,6 +70,11 @@ progress::-webkit-progress-value {
   <form id="import-config" action="/-/csv-importer" method="post">
   </form>
 
+  <div id="progress" style="display: none">
+    <p>Your file is being imported...</p>
+    <p class="status-message"></p>
+  </div>
+
   <div id="completed" style="display: none">
     <h2>Import Complete</h2>
     <h3>Result: <span class="result-short"></span></h3>

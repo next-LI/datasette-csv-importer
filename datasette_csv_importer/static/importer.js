@@ -5,6 +5,7 @@ const progress = document.getElementsByTagName("progress")[0];
 const progressLabel = document.getElementById("progress-label");
 const label = dropArea.getElementsByTagName("label")[0];
 const configForm = document.getElementById("import-config");
+const progressDiv = document.getElementById("progress");
 const completedDiv = document.getElementById("completed");
 const end_area = {
   short_txt: document.querySelector("#completed .result-short"),
@@ -28,8 +29,8 @@ function startOver() {
 
 function show_end_screen(status_code, last_status) {
   console.log("last_status", last_status);
+  progressDiv.style.display = "none";
   completedDiv.style.display = "block";
-  configForm.style.display = "none";
   if (status_code !== 200) {
     end_area.short_txt.innerText = "Failure";
     end_area.full_txt.innerText = `Server error: ${status_code}`;
@@ -39,6 +40,16 @@ function show_end_screen(status_code, last_status) {
     end_area.output.innerText = last_status.output;
     end_area.output.style.display = "block";
   }
+}
+
+function show_progress_screen() {
+  progressDiv.style.display = "block";
+  configForm.style.display = "none";
+}
+
+function update_progress_screen(last_status) {
+  console.log("Status", last_status);
+  document.querySelector("#progress .status-message").innerText = last_status.message;
 }
 
 /* {url: "/test.csv", status_database_path: "_internal", task_id: "e6dd81b4-fe1a-4f88-8d66-f1f9239ce0f6"} */
@@ -57,11 +68,11 @@ async function poll(response_data) {
     try {
       let status_resp = await fetch(status_url);
       status_code = status_resp.status;
-
       let recs = await status_resp.json();
       last_status = recs[0];
-      completed = last_status;
+      completed = last_status.completed;
     } catch(e) {
+      console.log("Failure! Progress updating done.")
       // failure!
       break;
     }
@@ -103,11 +114,22 @@ function uploadFile(file, options) {
     xhr.addEventListener("readystatechange", fileUploadStateChange.bind(this, xhr, res, rej));
     formData.append("xhr", "1");
     formData.append("csrftoken", get_csrftoken());
-    /*
-    Object.entries(options).forEach((key, value) => {
-      formData.append(key, value);
+    //const cmd_arguments = [];
+    Object.entries(options).forEach(([key, value], ix) => {
+      /* these don't take arguments, they are flag-only cli args */
+      if (value === true) {
+        //cmd_arguments.push(key);
+        formData.append(key, true);
+      }
+      /* false means the firld was left blank, if it's not false then
+       * we have an argument with a value! add both.
+       */
+      else if (value !== false) {
+        //cmd_arguments.push(key);
+        //cmd_arguments.push(value);
+        formData.append(key, value);
+      }
     });
-    */
     formData.append("csv", file);
     xhr.send(formData);
   });
@@ -135,6 +157,8 @@ async function handleFile(file) {
       "--table": file.name.replace(".csv", ""),
     },
     "onSubmitValid": function (options) {
+      window.OPTIONS = options;
+      console.log("options", options);
       console.log("options", options);
       uploadFile(file, options).then(poll);
     },
