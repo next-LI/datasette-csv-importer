@@ -11,7 +11,6 @@ import sys
 import tempfile
 import uuid
 
-
 from csvs_to_sqlite.cli import cli as command
 
 
@@ -29,7 +28,7 @@ def permission_allowed(actor, action):
 def register_routes():
     return [
         (r"^/-/csv-importer$", csv_importer),
-        (r"/-/csv-importer/(?P<task_id>.*)$", csv_importer_status),
+        (r"^/-/csv-importer/(?P<task_id>.*)$", csv_importer_status),
     ]
 
 
@@ -231,9 +230,11 @@ async def csv_importer(scope, receive, datasette, request):
             },
         )
     await db.execute_write_fn(set_refreshing)
-    datasette.add_database(
-        Database(datasette, path=outfile, is_mutable=True)
-    )
+    if basename not in datasette.databases:
+        datasette.add_database(
+            Database(datasette, path=outfile, is_mutable=True),
+            name=basename,
+        )
     await datasette.refresh_schemas()
 
     def marking_complete(conn):
