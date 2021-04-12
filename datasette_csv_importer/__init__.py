@@ -7,6 +7,7 @@ import asyncio
 import datetime
 import io
 import os
+import sqlite3
 import sqlite_utils
 import sys
 import tempfile
@@ -85,8 +86,17 @@ def get_database(datasette):
             for name, db in datasette.databases.items()
             if db.is_mutable and not database
         ][0]
-    db = datasette.databases[database]
-    return db
+    try:
+        return datasette.databases[database]
+    except KeyError:
+        pass
+    database_path = os.path.join(DEFAULT_DBPATH, database)
+    sqlite3.connect(database_path)
+    datasette.add_database(
+        Database(datasette, path=database_path, is_mutable=True),
+        name=database,
+    )
+    return datasette.databases[database]
 
 
 def get_dbpath(datasette):
