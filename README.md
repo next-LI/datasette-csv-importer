@@ -1,6 +1,6 @@
 # datasette-csv-importer
 
-Datasette plugin for live-uploading CSV files with a user-friendly configuration UI that doesn't require the application to be restarted to work.
+A Datasette plugin for live-uploading CSV files with a user-friendly configuration UI that doesn't require the application to be restarted to work.
 
 This plugin was inspired by the [datasette-upload-csvs](https://github.com/simonw/datasette-upload-csvs) plugin and uses [CSVs-to-SQlite](https://github.com/simonw/csvs-to-sqlite) to actually perform the import. Configuration comes from a parsed version of the CLI tool's `--help` output.
 

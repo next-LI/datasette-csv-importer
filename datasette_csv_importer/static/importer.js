@@ -59,8 +59,6 @@ async function poll(response_data) {
   const status_database_path = response_data.status_database_path;
   const status_url = `/${status_database_path}/_csv_importer_progress_.json?id=${task_id}&_shape=array`;
 
-  show_progress_screen();
-
   let status_code = 200;
   let completed = false;
   let last_status = {};
@@ -106,6 +104,11 @@ function fileUploadStateChange(xhr, res, rej, e) {
 }
 
 function uploadFile(file, options) {
+  update_progress_screen({
+    "message": "Uploading file...",
+  });
+  show_progress_screen();
+
   console.log("uploadFile file", file, "options", options);
   return new Promise((res, rej) => {
     const xhr = new XMLHttpRequest();
@@ -114,19 +117,15 @@ function uploadFile(file, options) {
     xhr.addEventListener("readystatechange", fileUploadStateChange.bind(this, xhr, res, rej));
     formData.append("xhr", "1");
     formData.append("csrftoken", get_csrftoken());
-    //const cmd_arguments = [];
     Object.entries(options).forEach(([key, value], ix) => {
       /* these don't take arguments, they are flag-only cli args */
       if (value === true) {
-        //cmd_arguments.push(key);
         formData.append(key, true);
       }
       /* false means the firld was left blank, if it's not false then
        * we have an argument with a value! add both.
        */
       else if (value !== false) {
-        //cmd_arguments.push(key);
-        //cmd_arguments.push(value);
         formData.append(key, value);
       }
     });
@@ -157,8 +156,7 @@ async function handleFile(file) {
       "--table": file.name.replace(".csv", ""),
     },
     "onSubmitValid": function (options) {
-      window.OPTIONS = options;
-      console.log("options", options);
+      console.log("Submitting...");
       console.log("options", options);
       uploadFile(file, options).then(poll);
     },

@@ -9,6 +9,11 @@
       "description": "Table to use (instead of using CSV filename)",
       "required": true
     },
+    "database": {
+      "type": "string",
+      "title": "Database name",
+      "description": "Database to use (by default it will be based on the CSV filename)"
+    },
     "--skip-errors": {
       "type": "boolean",
       "title": "Skip errors?",

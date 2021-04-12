@@ -3,6 +3,7 @@ from datasette.database import Database
 from datasette.utils.asgi import Response, Forbidden
 from starlette.requests import Request
 from urllib.parse import quote_plus
+import asyncio
 import datetime
 import io
 import os
@@ -120,6 +121,9 @@ async def csv_importer(scope, receive, datasette, request):
 
     `csv` should contain the CSV file to be imported
 
+    `database` is the name of the database file to be written to. If blank,
+    we will choose a name base on the uploaded file name.
+
     If `xhr` is set to `1` we will assume a JS client is running and this
     endpoint will return JSON (as opposed to rendering a different HTML
     template without `xhr` set to `1`).
@@ -158,10 +162,11 @@ async def csv_importer(scope, receive, datasette, request):
     # csv.file is a SpooledTemporaryFile. csv.filename is the filename
     filename = csv.filename
     basename = os.path.splitext(filename)[0]
+    if "database" in formdata and formdata["database"]:
+        basename = formdata["database"]
     outfile = os.path.join(get_dbpath(datasette), f"{basename}.db")
 
     task_id = str(uuid.uuid4())
-
 
     def insert_initial_record(conn):
         database = sqlite_utils.Database(conn)
@@ -182,10 +187,7 @@ async def csv_importer(scope, receive, datasette, request):
         )
     await db.execute_write_fn(insert_initial_record)
 
-    exitcode = -1
-    output = None
-
-    def run_import(conn):
+    def import_preparing(conn):
         database = sqlite_utils.Database(conn)
         database[status_table].update(
             task_id,
@@ -193,7 +195,7 @@ async def csv_importer(scope, receive, datasette, request):
                 "message": "Preparing import options...",
             },
         )
-    await db.execute_write_fn(run_import)
+    await db.execute_write_fn(import_preparing)
 
     args = []
     for key, value in formdata.items():
@@ -219,46 +221,36 @@ async def csv_importer(scope, receive, datasette, request):
     await db.execute_write_fn(set_running)
 
     # run the command, capture its output
-    with tempfile.NamedTemporaryFile() as temp:
-        temp.write(csv.file.read())
-        temp.flush()
+    def run_cli_import(conn):
+        exitcode = -1
+        output = None
+        try:
+            database = sqlite_utils.Database(conn)
 
-        args.append(temp.name)
-        args.append(outfile)
+            with tempfile.NamedTemporaryFile() as temp:
+                temp.write(csv.file.read())
+                temp.flush()
 
-        # run the import command, capturing stdout
-        with Capturing() as output:
-            exitcode = command.main(
-                args=args, prog_name="cli", standalone_mode=False
-            )
-            if exitcode is not None:
-                exitcode = int(exitcode)
-            # detect a failure to write DB where tool returns success code
-            # this makes it so we don't have to read the CLI output to
-            # figure out if the command succeeded or not
-            if not os.path.exists(outfile) and not exitcode:
-                exitcode = -2
+                args.append(temp.name)
+                args.append(outfile)
 
-    def set_refreshing(conn):
-        database = sqlite_utils.Database(conn)
-        database[status_table].update(
-            task_id,
-            {
-                "message": "Refreshing databases list...",
-            },
-        )
-    await db.execute_write_fn(set_refreshing)
+                # run the import command, capturing stdout
+                with Capturing() as output:
+                    exitcode = command.main(
+                        args=args, prog_name="cli", standalone_mode=False
+                    )
+                    if exitcode is not None:
+                        exitcode = int(exitcode)
+                    # detect a failure to write DB where tool returns success code
+                    # this makes it so we don't have to read the CLI output to
+                    # figure out if the command succeeded or not
+                    if not os.path.exists(outfile) and not exitcode:
+                        exitcode = -2
+        except Exception as e:
+            exitcode = -2
+            message = str(e)
 
-    if basename not in datasette.databases:
-        datasette.add_database(
-            Database(datasette, path=outfile, is_mutable=True),
-            name=basename,
-        )
-    await datasette.refresh_schemas()
-
-    def marking_complete(conn):
         message = "Import successful!" if not exitcode else "Failure"
-        database = sqlite_utils.Database(conn)
         database[status_table].update(
             task_id,
             {
@@ -269,7 +261,16 @@ async def csv_importer(scope, receive, datasette, request):
                 "output": "\n".join(output),
             },
         )
-    await db.execute_write_fn(marking_complete)
+
+        if basename not in datasette.databases:
+            datasette.add_database(
+                Database(datasette, path=outfile, is_mutable=True),
+                name=basename,
+            )
+        loop = asyncio.get_event_loop()
+        loop.create_task(datasette.refresh_schemas())
+
+    await db.execute_write_fn(run_cli_import)
 
     if formdata.get("xhr"):
         return Response.json(

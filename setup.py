@@ -30,8 +30,7 @@ setup(
         "aiofiles",
         "python-multipart",
         "sqlite-utils",
-        "requests",
-        "GitPython>=3.1.14,<4.0",
+        "csvs-to-sqlite>=1.2,<2.0",
     ],
     extras_require={
         "test": ["pytest", "pytest-asyncio", "asgiref", "httpx", "asgi-lifespan"]
