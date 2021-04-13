@@ -90,7 +90,7 @@ def get_database(datasette):
         return datasette.databases[database]
     except KeyError:
         pass
-    database_path = os.path.join(DEFAULT_DBPATH, database)
+    database_path = os.path.join(DEFAULT_DBPATH, f"{database}.db")
     sqlite3.connect(database_path)
     datasette.add_database(
         Database(datasette, path=database_path, is_mutable=True),
