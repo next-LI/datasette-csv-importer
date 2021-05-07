@@ -1,7 +1,8 @@
 from setuptools import setup
 import os
 
-VERSION = "0.6"
+
+VERSION = "0.8.0"
 
 
 def get_long_description():
@@ -17,14 +18,14 @@ setup(
     description="Datasette plugin for live-uploading CSV files with a user-friendly configuration UI.",
     long_description=get_long_description(),
     long_description_content_type="text/markdown",
-    author="Simon Willison",
+    author="Brandon Roberts and Newsday's NextLI project",
     url="https://github.com/next-LI/datasette",
     license="Apache License, Version 2.0",
     version=VERSION,
     packages=["datasette_csv_importer"],
     entry_points={"datasette": ["csv_importer = datasette_csv_importer"]},
     install_requires=[
-        "datasette>=0.51",
+        "datasette==0.56.1-nextli",
         "asgi-csrf>=0.7",
         "starlette",
         "aiofiles",

@@ -7,10 +7,10 @@ import asyncio
 import datetime
 import io
 import os
+import json
 import sqlite3
 import sqlite_utils
 import sys
-import tempfile
 import uuid
 
 from csvs_to_sqlite.cli import cli as command
@@ -18,6 +18,7 @@ from csvs_to_sqlite.cli import cli as command
 
 DEFAULT_STATUS_TABLE="_csv_importer_progress_"
 DEFAULT_DBPATH="."
+DEFAULT_CSV_SAVE_DIRECTORY="csvs"
 
 
 @hookimpl
@@ -52,7 +53,8 @@ def menu_links(datasette, actor):
 class Capturing(list):
     def __enter__(self):
         self._stdout = sys.stdout
-        sys.stdout = self._stringio = io.StringIO()
+        self._stringio = io.StringIO()
+        sys.stdout = self._stringio
         return self
     def __exit__(self, *args):
         self.extend(self._stringio.getvalue().splitlines())
@@ -86,6 +88,7 @@ def get_database(datasette):
             for name, db in datasette.databases.items()
             if db.is_mutable and not database
         ][0]
+        print("DB database", database)
     try:
         return datasette.databases[database]
     except KeyError:
@@ -109,7 +112,21 @@ def get_dbpath(datasette):
     return plugin_config.get("database_path", DEFAULT_DBPATH)
 
 
+def save_csv_data(datasette, basename, csv, args):
+    plugin_config = datasette.plugin_config(
+        "datasette-csv-importer"
+    ) or {}
+    save_path = plugin_config.get("csv_save_directory", DEFAULT_CSV_SAVE_DIRECTORY)
+    csv_filepath = os.path.join(save_path, f"{basename}.csv")
+    with open(csv_filepath, "w") as f:
+        f.write(csv.file.read())
+    cfg_filepath = os.path.join(save_path, f"{basename}.import-args.json")
+    with open(cfg_filepath, "w") as f:
+        f.write(json.dumps(args, indent=2))
+
+
 async def csv_importer_status(scope, receive, datasette, request):
+    # TODO: permissioning on status? do we care?
     if not await datasette.permission_allowed(
         request.actor, "csv-importer", default=False
     ):
@@ -151,7 +168,9 @@ async def csv_importer(scope, receive, datasette, request):
         raise Forbidden("Permission denied for csv-importer")
 
     db = get_database(datasette)
+    print("db", db)
     status_table = get_status_table(datasette)
+    print("status_table", status_table)
 
     # We need the ds_request to pass to render_template for CSRF tokens
     ds_request = request
@@ -167,7 +186,9 @@ async def csv_importer(scope, receive, datasette, request):
         )
 
     formdata = await starlette_request.form()
+    print("formdata", formdata)
     csv = formdata["csv"]
+    print("csv", csv)
 
     # csv.file is a SpooledTemporaryFile. csv.filename is the filename
     filename = csv.filename
@@ -179,6 +200,7 @@ async def csv_importer(scope, receive, datasette, request):
     task_id = str(uuid.uuid4())
 
     def insert_initial_record(conn):
+        print("insert_initial_record")
         database = sqlite_utils.Database(conn)
         database[status_table].insert(
             {
@@ -198,6 +220,7 @@ async def csv_importer(scope, receive, datasette, request):
     await db.execute_write_fn(insert_initial_record)
 
     def import_preparing(conn):
+        print("import_preparing")
         database = sqlite_utils.Database(conn)
         database[status_table].update(
             task_id,
@@ -221,6 +244,7 @@ async def csv_importer(scope, receive, datasette, request):
         args.append(value)
 
     def set_running(conn):
+        print("set_running")
         database = sqlite_utils.Database(conn)
         database[status_table].update(
             task_id,
@@ -232,30 +256,27 @@ async def csv_importer(scope, receive, datasette, request):
 
     # run the command, capture its output
     def run_cli_import(conn):
+        print("run_cli_import", run_cli_import)
         exitcode = -1
         output = None
         try:
             database = sqlite_utils.Database(conn)
+            csv_filepath = save_csv_data(datasette, basename, csv, args)
+            args.append(csv_filepath.name)
+            args.append(outfile)
 
-            with tempfile.NamedTemporaryFile() as temp:
-                temp.write(csv.file.read())
-                temp.flush()
-
-                args.append(temp.name)
-                args.append(outfile)
-
-                # run the import command, capturing stdout
-                with Capturing() as output:
-                    exitcode = command.main(
-                        args=args, prog_name="cli", standalone_mode=False
-                    )
-                    if exitcode is not None:
-                        exitcode = int(exitcode)
-                    # detect a failure to write DB where tool returns success code
-                    # this makes it so we don't have to read the CLI output to
-                    # figure out if the command succeeded or not
-                    if not os.path.exists(outfile) and not exitcode:
-                        exitcode = -2
+            # run the import command, capturing stdout
+            with Capturing() as output:
+                exitcode = command.main(
+                    args=args, prog_name="cli", standalone_mode=False
+                )
+                if exitcode is not None:
+                    exitcode = int(exitcode)
+                # detect a failure to write DB where tool returns success code
+                # this makes it so we don't have to read the CLI output to
+                # figure out if the command succeeded or not
+                if not os.path.exists(outfile) and not exitcode:
+                    exitcode = -2
         except Exception as e:
             exitcode = -2
             message = str(e)
