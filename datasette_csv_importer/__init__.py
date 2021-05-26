@@ -3,9 +3,10 @@ from datasette.database import Database
 from datasette.utils.asgi import Response, Forbidden
 from starlette.requests import Request
 from urllib.parse import quote_plus
-import asyncio
+# import asyncio
 import datetime
 import io
+import json
 import os
 import sqlite3
 import sqlite_utils
@@ -18,6 +19,66 @@ from csvs_to_sqlite.cli import cli as command
 
 DEFAULT_STATUS_TABLE="_csv_importer_progress_"
 DEFAULT_DBPATH="."
+
+
+def get_dbpath(datasette):
+    """
+    Get the path where to build SQlite databases. Default: .
+    """
+    plugin_config = datasette.plugin_config(
+        "datasette-csv-importer"
+    ) or {}
+    return plugin_config.get("database_path", DEFAULT_DBPATH)
+
+
+def get_csvspath(datasette):
+    """
+    Get the path where to save the uploaded CSV files and import config.
+    Default: ./csvs
+    """
+    plugin_config = datasette.plugin_config(
+        "datasette-csv-importer"
+    ) or {}
+    return plugin_config.get("csvs_path")
+
+
+def get_status_table(datasette):
+    plugin_config = datasette.plugin_config(
+        "datasette-csv-importer"
+    ) or {}
+    return plugin_config.get("status_table", DEFAULT_STATUS_TABLE)
+
+
+def get_status_database(datasette):
+    """
+    Get a database, based on the `database` plugin setting (or the first
+    mutable DB in the list of databases) to read from.
+    """
+    plugin_config = datasette.plugin_config(
+        "datasette-csv-importer"
+    ) or {}
+
+    # NOTE: This does not create the DB if it doesn't exist! Use
+    # the import endpoint first.
+    database = plugin_config.get("status_database")
+    if not database:
+        # For the moment just use the first database that's not immutable
+        database = [
+            name
+            for name, db in datasette.databases.items()
+            if db.is_mutable and not database
+        ][0]
+    try:
+        return datasette.databases[database]
+    except KeyError:
+        pass
+    database_path = os.path.join(DEFAULT_DBPATH, f"{database}.db")
+    sqlite3.connect(database_path)
+    datasette.add_database(
+        Database(datasette, path=database_path, is_mutable=True),
+        name=database,
+    )
+    return datasette.databases[database]
 
 
 @hookimpl
@@ -60,62 +121,13 @@ class Capturing(list):
         sys.stdout = self._stdout
 
 
-def get_status_table(datasette):
-    plugin_config = datasette.plugin_config(
-        "datasette-csv-importer"
-    ) or {}
-    return plugin_config.get("status_table", DEFAULT_STATUS_TABLE)
-
-
-def get_database(datasette):
-    """
-    Get a database, based on the `database` plugin setting (or the first
-    mutable DB in the list of databases) to read from.
-    """
-    plugin_config = datasette.plugin_config(
-        "datasette-csv-importer"
-    ) or {}
-
-    # NOTE: This does not create the DB if it doesn't exist! Use
-    # the import endpoint first.
-    database = plugin_config.get("status_database")
-    if not database:
-        # For the moment just use the first database that's not immutable
-        database = [
-            name
-            for name, db in datasette.databases.items()
-            if db.is_mutable and not database
-        ][0]
-    try:
-        return datasette.databases[database]
-    except KeyError:
-        pass
-    database_path = os.path.join(DEFAULT_DBPATH, f"{database}.db")
-    sqlite3.connect(database_path)
-    datasette.add_database(
-        Database(datasette, path=database_path, is_mutable=True),
-        name=database,
-    )
-    return datasette.databases[database]
-
-
-def get_dbpath(datasette):
-    """
-    Get the path where to build SQlite databases. Default: .
-    """
-    plugin_config = datasette.plugin_config(
-        "datasette-csv-importer"
-    ) or {}
-    return plugin_config.get("database_path", DEFAULT_DBPATH)
-
-
 async def csv_importer_status(scope, receive, datasette, request):
     if not await datasette.permission_allowed(
         request.actor, "csv-importer", default=False
     ):
         raise Forbidden("Permission denied for csv-importer")
 
-    db = get_database(datasette)
+    db = get_status_database(datasette)
     status_table = get_status_table(datasette)
 
     query = f"select * from {status_table} where id = ? limit 1"
@@ -150,7 +162,7 @@ async def csv_importer(scope, receive, datasette, request):
     ):
         raise Forbidden("Permission denied for csv-importer")
 
-    db = get_database(datasette)
+    db = get_status_database(datasette)
     status_table = get_status_table(datasette)
 
     # We need the ds_request to pass to render_template for CSRF tokens
@@ -174,7 +186,10 @@ async def csv_importer(scope, receive, datasette, request):
     basename = os.path.splitext(filename)[0]
     if "database" in formdata and formdata["database"]:
         basename = formdata["database"]
-    outfile = os.path.join(get_dbpath(datasette), f"{basename}.db")
+
+    outfile_db = os.path.join(get_dbpath(datasette), f"{basename}.db")
+
+    # TODO: check permission on outfile_db, if exists, can we overwrite it?
 
     task_id = str(uuid.uuid4())
 
@@ -211,6 +226,8 @@ async def csv_importer(scope, receive, datasette, request):
     for key, value in formdata.items():
         if not key.startswith("-"):
             continue
+        if key in ["-t", "--table"]:
+            csv_table_name = value
         # this is a toggle/flag arg with no param
         if value is True or value == "true":
             args.append(key)
@@ -242,7 +259,7 @@ async def csv_importer(scope, receive, datasette, request):
                 temp.flush()
 
                 args.append(temp.name)
-                args.append(outfile)
+                args.append(outfile_db)
 
                 # run the import command, capturing stdout
                 with Capturing() as output:
@@ -254,11 +271,39 @@ async def csv_importer(scope, receive, datasette, request):
                     # detect a failure to write DB where tool returns success code
                     # this makes it so we don't have to read the CLI output to
                     # figure out if the command succeeded or not
-                    if not os.path.exists(outfile) and not exitcode:
+                    if not os.path.exists(outfile_db) and not exitcode:
                         exitcode = -2
         except Exception as e:
             exitcode = -2
             message = str(e)
+
+        csvspath = get_csvspath(datasette)
+        if csvspath:
+            csv_db_name = args[-1].replace(".db", "")
+            csv_table_name = csv_db_name
+            if "-t" in formdata:
+                csv_table_name = formdata["-t"]
+            if "--table" in formdata:
+                csv_table_name = formdata["--table"]
+            outfile_csv = os.path.join(
+                csvspath, f"{csv_db_name}--{csv_table_name}.csv"
+            )
+            outfile_args = os.path.join(
+                csvspath, f"{csv_db_name}--{csv_table_name}.json"
+            )
+
+            print("Import successful! Exit:", exitcode, "Output:", output)
+            # success! save our configs and CSV
+            print("Writing CSV", outfile_csv)
+            with open(outfile_csv, "wb") as f:
+                csv.file.seek(0)
+                f.write(csv.file.read())
+
+            print("Writing args to", outfile_args)
+            with open(outfile_args, "w") as f:
+                f.write(json.dumps(args, indent=2))
+
+        # TODO: checkin and commit new data
 
         message = "Import successful!" if not exitcode else "Failure"
         database[status_table].update(
@@ -274,11 +319,9 @@ async def csv_importer(scope, receive, datasette, request):
 
         if basename not in datasette.databases:
             datasette.add_database(
-                Database(datasette, path=outfile, is_mutable=True),
+                Database(datasette, path=outfile_db, is_mutable=True),
                 name=basename,
             )
-        loop = asyncio.get_event_loop()
-        loop.create_task(datasette.refresh_schemas())
 
     await db.execute_write_fn(run_cli_import)
 
