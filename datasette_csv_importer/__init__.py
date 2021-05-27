@@ -19,6 +19,7 @@ from csvs_to_sqlite.cli import cli as command
 
 DEFAULT_STATUS_TABLE="_csv_importer_progress_"
 DEFAULT_DBPATH="."
+DEFAULT_LIVE_METADATA=False
 
 
 def get_dbpath(datasette):
@@ -29,6 +30,17 @@ def get_dbpath(datasette):
         "datasette-csv-importer"
     ) or {}
     return plugin_config.get("database_path", DEFAULT_DBPATH)
+
+
+def get_live_metadata(datasette):
+    """
+    Whether or not to use the __metadata table as supported
+    by the next-LI/datasette_live_config plugin.
+    """
+    plugin_config = datasette.plugin_config(
+        "datasette-csv-importer"
+    ) or {}
+    return plugin_config.get("live_metadata", DEFAULT_LIVE_METADATA)
 
 
 def get_csvspath(datasette):
@@ -303,8 +315,23 @@ async def csv_importer(scope, receive, datasette, request):
             with open(outfile_args, "w") as f:
                 f.write(json.dumps(args, indent=2))
 
-        # TODO: checkin and commit new data
+        if get_live_metadata(datasette):
+            # add the permission table, grant access to current user only
+            # this will create the DB if not exists
+            db = sqlite_utils.Database(sqlite3.connect(outfile_db))
+            actor = request.actor
+            try:
+                db["__metadata"].get("allow")
+            except sqlite_utils.db.NotFoundError:
+                # don't overwrite, only create
+                db["__metadata"].insert({
+                    "key": "allow",
+                    "value": json.dumps({
+                        "id": "*" if not actor or not actor.id else actor.id
+                    }),
+                }, pk="key", alter=True, replace=False)
 
+        # TODO: checkin and commit new data
         message = "Import successful!" if not exitcode else "Failure"
         database[status_table].update(
             task_id,
