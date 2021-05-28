@@ -38,7 +38,8 @@ Details on the configuration:
 - `status_table` - name of the table that we'll write import status rows to.
 - `database_path` - path to the directory that we'll use to write SQlite databases to. By default, the plugin will use the current working directory of the process running it.
 - `csvs_path` - path to the directory where raw uploaded CSVs will be saved, along with their `csvs-to-sqlite` import settings. If this isn't set, then this plugin won't do CSV/config saving.
-- `live_metadata` - (boolean)  Whether or not to build the `__metadata` table as supported by the [next-LI/datasette_live_config](https://github.com/next-LI/datasette_live_config) plugin, giving default access to the current user.
+- `use_db_metadata` - (boolean)  Whether or not to build the `__metadata` table as supported by the [next-LI/datasette_live_config](https://github.com/next-LI/datasette_live_config) plugin, giving default access to the current user.
+- `use_live_permissions` - (boolean) Whether or not to integrate with the [next-LI/datasette-live-permissions](https://github/com/next-LI/datasette-live-permissions) and grant the uploading user access upon upload.
 
 
 ## Usage

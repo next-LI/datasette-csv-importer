@@ -20,6 +20,7 @@ from csvs_to_sqlite.cli import cli as command
 DEFAULT_STATUS_TABLE="_csv_importer_progress_"
 DEFAULT_DBPATH="."
 DEFAULT_LIVE_METADATA=False
+DEFAULT_USE_LIVE_PERMISSIONS=True
 
 
 def get_dbpath(datasette):
@@ -32,7 +33,20 @@ def get_dbpath(datasette):
     return plugin_config.get("database_path", DEFAULT_DBPATH)
 
 
-def get_live_metadata(datasette):
+def get_use_live_permissions(datasette):
+    """
+    Whether or not to use the __metadata table as supported
+    by the next-LI/datasette_live_config plugin.
+    """
+    plugin_config = datasette.plugin_config(
+        "datasette-csv-importer"
+    )
+    return plugin_config.get(
+        "use_live_permissions", DEFAULT_USE_LIVE_PERMISSIONS
+    )
+
+
+def get_use_live_metadata(datasette):
     """
     Whether or not to use the __metadata table as supported
     by the next-LI/datasette_live_config plugin.
@@ -40,7 +54,7 @@ def get_live_metadata(datasette):
     plugin_config = datasette.plugin_config(
         "datasette-csv-importer"
     ) or {}
-    return plugin_config.get("live_metadata", DEFAULT_LIVE_METADATA)
+    return plugin_config.get("use_db_metadata", DEFAULT_LIVE_METADATA)
 
 
 def get_csvspath(datasette):
@@ -146,6 +160,60 @@ async def csv_importer_status(scope, receive, datasette, request):
     result = await db.execute(query, (request.url_vars["task_id"],))
     run = result.first()
     return Response.json(run)
+
+
+def set_perms_for_live_permissions(datasette, actor, database):
+    # TODO: pull from live-config plugin config to get db path
+    # add the permission table, grant access to current user only
+    # this will create the DB if not exists
+    if not os.path.exists("live_permissions.db"):
+        return
+
+    if not actor:
+        return
+
+    db = sqlite_utils.Database(sqlite3.connect("live_permissions.db"))
+
+    user_id = None
+    for key, value in actor.items():
+        if not isinstance(value, str) and not isinstance(value, int):
+            continue
+        query = "select id from [users] where lookup = :lookup and value = :value"
+        args = {"lookup": f"actor.{key}", "value": value}
+        user_results = db.execute(query, args).fetchall()
+        for user_data in user_results:
+            user_id = user_data[0]
+            break
+
+    if user_id is None:
+        return
+
+    query = (
+        "select id from actions_resources where "
+        "action = :action and resource_primary = :resource_primary"
+    )
+    args = {
+        "action": "view-table",
+        "resource_primary": database
+    }
+    results = db.execute(query, args).fetchall()
+    for row in results:
+        ar_id = row[0]
+        query = (
+            "select id from permissions where "
+            "user_id = :user_id and actions_resources_id = :ar_id"
+        )
+        args = {"user_id": user_id, "ar_id": ar_id}
+        perms_results = db.execute(query, args).fetchall()
+        for pr_data in perms_results:
+            # we're done! we already have access
+            return
+
+    db["permissions"].insert({
+        "user_id": user_id,
+        "actions_resources_id": ar_id
+    }, pk="id", alter=False, replace=True)
+
 
 
 async def csv_importer(scope, receive, datasette, request):
@@ -315,7 +383,7 @@ async def csv_importer(scope, receive, datasette, request):
             with open(outfile_args, "w") as f:
                 f.write(json.dumps(args, indent=2))
 
-        if get_live_metadata(datasette):
+        if get_use_live_metadata(datasette):
             # add the permission table, grant access to current user only
             # this will create the DB if not exists
             db = sqlite_utils.Database(sqlite3.connect(outfile_db))
@@ -330,6 +398,9 @@ async def csv_importer(scope, receive, datasette, request):
                         "id": "*" if not actor or not actor.id else actor.id
                     }),
                 }, pk="key", alter=True, replace=False)
+
+        if get_use_live_permissions(datasette):
+            set_perms_for_live_permissions(datasette, request.actor, basename)
 
         # TODO: checkin and commit new data
         message = "Import successful!" if not exitcode else "Failure"
