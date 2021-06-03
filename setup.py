@@ -1,7 +1,7 @@
 from setuptools import setup
 import os
 
-VERSION = "0.9.0"
+VERSION = "0.10.0"
 
 
 def get_long_description():
@@ -24,7 +24,7 @@ setup(
     packages=["datasette_csv_importer"],
     entry_points={"datasette": ["csv_importer = datasette_csv_importer"]},
     install_requires=[
-        "datasette>=0.51",
+        # "datasette>=0.51",
         "asgi-csrf>=0.7",
         "starlette",
         "aiofiles",
