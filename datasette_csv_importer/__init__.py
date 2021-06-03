@@ -352,6 +352,17 @@ async def csv_importer(scope, receive, datasette, request):
             exitcode = -2
             message = str(e)
 
+        # Adds this DB to the internel DBs list
+        if basename not in datasette.databases:
+            datasette.add_database(
+                Database(datasette, path=outfile_db, is_mutable=True),
+                name=basename,
+            )
+            # loop = asyncio.get_event_loop()
+            # if not loop:
+            #     loop = asyncio.new_event_loop()
+            # loop.run_until_complete(datasette.refresh_schemas())
+
         csvspath = get_csvspath(plugin_config)
         print("csvspath", csvspath)
         if csvspath:
@@ -420,17 +431,6 @@ async def csv_importer(scope, receive, datasette, request):
             )
             print(f"HEAD SHA: {head_sha}")
 
-        # # Adds this DB to the internel DBs list
-        # if basename not in datasette.databases:
-        #     datasette.add_database(
-        #         Database(datasette, path=outfile_db, is_mutable=True),
-        #         name=basename,
-        #     )
-        #     loop = asyncio.get_event_loop()
-        #     if not loop:
-        #         loop = asyncio.new_event_loop()
-        #     loop.run_until_complete(datasette.refresh_schemas())
-
         message = "Import successful!" if not exitcode else "Failure"
         database[status_table].update(
             task_id,
@@ -442,8 +442,6 @@ async def csv_importer(scope, receive, datasette, request):
                 "output": "\n".join(output),
             },
         )
-
-
 
     await db.execute_write_fn(run_cli_import)
 

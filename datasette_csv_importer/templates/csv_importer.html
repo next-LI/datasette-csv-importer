@@ -46,6 +46,14 @@ progress::-webkit-progress-value {
 .importer-widget form button[type=button] {
   font-size: unset;
 }
+
+.db-link {
+  font-size: 1.1em;
+}
+.db-link a {
+  padding-top: 20px;
+  padding-bottom: 20px;
+}
 </style>
 {% endblock %}
 
@@ -86,7 +94,10 @@ progress::-webkit-progress-value {
     <h3>Result: <span class="result-short"></span></h3>
     <p class="result-text"></p>
       <pre class="output" style="display: none"></pre>
-    <button onClick="startOver()">Try with different options?</button>
+      <button onClick="startOver()">Try with different options?</button>
+      <p class="db-link">
+        <a id="to-db" style="display: none" href=""></a>
+      </p>
   </div>
 </div>
 

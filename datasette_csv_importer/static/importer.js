@@ -11,6 +11,7 @@ const end_area = {
   short_txt: document.querySelector("#completed .result-short"),
   full_txt: document.querySelector("#completed .result-text"),
   output: document.querySelector("#completed .output"),
+  db_link: document.querySelector("#to-db")
 };
 
 function get_csrftoken() {
@@ -39,6 +40,9 @@ function show_end_screen(status_code, last_status) {
     end_area.full_txt.innerText = last_status.message;
     end_area.output.innerText = last_status.output;
     end_area.output.style.display = "block";
+    end_area.db_link.setAttribute("href", `/${last_status.dbname}`);
+    end_area.db_link.innerText = "Click here to go to imported database →";
+    end_area.db_link.style.display = "block";
   }
 }
 
