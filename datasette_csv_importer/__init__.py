@@ -185,6 +185,7 @@ def set_perms_for_live_permissions(datasette, actor, database):
         "resource_primary": database
     }
     results = db.execute(query, args).fetchall()
+    ar_id = None
     for row in results:
         ar_id = row[0]
         query = (
@@ -197,10 +198,11 @@ def set_perms_for_live_permissions(datasette, actor, database):
             # we're done! we already have access
             return
 
-    db["permissions"].insert({
-        "user_id": user_id,
-        "actions_resources_id": ar_id
-    }, pk="id", alter=False, replace=True)
+    if ar_id:
+        db["permissions"].insert({
+            "user_id": user_id,
+            "actions_resources_id": ar_id
+        }, pk="id", alter=False, replace=True)
 
 
 
@@ -395,16 +397,16 @@ async def csv_importer(scope, receive, datasette, request):
             # add the permission table, grant access to current user only
             # this will create the DB if not exists
             db = sqlite_utils.Database(sqlite3.connect(outfile_db))
-            print("db", db)
-            actor = request.actor
             try:
                 db["__metadata"].get("allow")
             except sqlite_utils.db.NotFoundError:
                 # don't overwrite, only create
                 db["__metadata"].insert({
-                    "key": "allow",
+                    "key": "tables",
                     "value": json.dumps({
-                        "id": "*" if not actor or not actor.id else actor.id
+                        "__metadata": {
+                            "hidden": True
+                        }
                     }),
                 }, pk="key", alter=True, replace=False)
 

@@ -1,7 +1,7 @@
 from setuptools import setup
 import os
 
-VERSION = "0.10.0"
+VERSION = "0.10.1"
 
 
 def get_long_description():
@@ -31,6 +31,7 @@ setup(
         "python-multipart",
         "sqlite-utils",
         "csvs-to-sqlite>=1.2,<2.0",
+        "GitPython>=3.1.15,<4.0",
     ],
     extras_require={
         "test": ["pytest", "pytest-asyncio", "asgiref", "httpx", "asgi-lifespan"]
