@@ -7,6 +7,7 @@ import os
 import sqlite3
 import sqlite_utils
 import sys
+import time
 import tempfile
 import uuid
 
@@ -150,7 +151,7 @@ async def csv_importer_status(scope, receive, datasette, request):
     return Response.json(run)
 
 
-def set_perms_for_live_permissions(datasette, actor, database):
+def set_perms_for_live_permissions(datasette, actor, db_name):
     # TODO: pull from live-config plugin config to get db path
     # add the permission table, grant access to current user only
     # this will create the DB if not exists
@@ -162,48 +163,63 @@ def set_perms_for_live_permissions(datasette, actor, database):
 
     db = sqlite_utils.Database(sqlite3.connect("live_permissions.db"))
 
-    user_id = None
-    for key, value in actor.items():
-        if not isinstance(value, str) and not isinstance(value, int):
-            continue
-        query = "select id from [users] where lookup = :lookup and value = :value"
-        args = {"lookup": f"actor.{key}", "value": value}
-        user_results = db.execute(query, args).fetchall()
-        for user_data in user_results:
-            user_id = user_data[0]
-            break
+    group_name = f"DB Access: {db_name}"
+    db["groups"].insert({
+        "name": group_name,
+    }, pk="id", replace=True)
 
-    if user_id is None:
-        return
+    group_id = None
+    for row in db["groups"].rows_where('name=?', (group_name,)):
+        group_id = row["id"]
+        break
 
-    query = (
-        "select id from actions_resources where "
-        "action = :action and resource_primary = :resource_primary"
-    )
-    args = {
+    print("Group ID", group_id)
+
+    group_action_resources = [{
+        "action": "view-database",
+        "resource_primary": db_name,
+    }, {
         "action": "view-table",
-        "resource_primary": database
-    }
-    results = db.execute(query, args).fetchall()
-    ar_id = None
-    for row in results:
-        ar_id = row[0]
-        query = (
-            "select id from permissions where "
-            "user_id = :user_id and actions_resources_id = :ar_id"
-        )
-        args = {"user_id": user_id, "ar_id": ar_id}
-        perms_results = db.execute(query, args).fetchall()
-        for pr_data in perms_results:
-            # we're done! we already have access
-            return
-
-    if ar_id:
+        "resource_primary": db_name,
+    }, {
+        "action": "live-config",
+        "resource_primary": db_name,
+    }]
+    for ar_data in group_action_resources:
+        print("Adding A/R:", ar_data)
+        db["actions_resources"].insert(ar_data, pk="id", replace=True)
+        query = 'action=:action and resource_primary=:resource_primary'
+        args = tuple(ar_data.values())
+        ar_id = None
+        for row in db["actions_resources"].rows_where(query, args):
+            ar_id = row["id"]
+            break
+        print("A/R ID", ar_id)
         db["permissions"].insert({
-            "user_id": user_id,
+            "group_id": group_id,
             "actions_resources_id": ar_id
         }, pk="id", alter=False, replace=True)
 
+    # find user
+    user_id = None
+    for key, value in actor.items():
+        if not value:
+            continue
+        if not isinstance(value, str) and not isinstance(value, int):
+            continue
+        query = "lookup=? and value=?"
+        args = (f"actor.{key}", value)
+        for row in db["users"].rows_where(query, args):
+            user_id = row["id"]
+            break
+
+    print("Found User ID", user_id)
+
+    # add user to group
+    db["group_membership"].insert({
+        "user_id": user_id,
+        "group_id": group_id,
+    }, pk=("group_id", "user_id"), replace=True)
 
 
 async def csv_importer(scope, receive, datasette, request):
@@ -356,17 +372,21 @@ async def csv_importer(scope, receive, datasette, request):
 
         # Adds this DB to the internel DBs list
         if basename not in datasette.databases:
+            print("Adding database", basename)
             datasette.add_database(
                 Database(datasette, path=outfile_db, is_mutable=True),
                 name=basename,
             )
-            # loop = asyncio.get_event_loop()
-            # if not loop:
+            # print("Database added successfully!")
+            # try:
+            #     loop = asyncio.get_running_loop()
+            # except RuntimeError:
             #     loop = asyncio.new_event_loop()
+            # print("Running schema refresh...")
             # loop.run_until_complete(datasette.refresh_schemas())
+            # print("Schema refresh complete!")
 
         csvspath = get_csvspath(plugin_config)
-        print("csvspath", csvspath)
         if csvspath:
             csv_db_name = args[-1].replace(".db", "")
             csv_table_name = csv_db_name
@@ -408,7 +428,7 @@ async def csv_importer(scope, receive, datasette, request):
                             "hidden": True
                         }
                     }),
-                }, pk="key", alter=True, replace=False)
+                }, pk="key", alter=True, replace=False, ignore=True)
 
         if get_use_live_permissions(plugin_config):
             print("Using live permissions plugin integration...")
@@ -419,9 +439,6 @@ async def csv_importer(scope, receive, datasette, request):
         repo_name = plugin_config.get("repo_name")
         github_user = plugin_config.get("github_user")
         github_token = plugin_config.get("github_token")
-        print("repo_owner", repo_owner, "repo_name", repo_name,
-              "github_user", github_user, "github_token", github_token,
-              "csvspath", csvspath)
         if csvspath and repo_owner and repo_name and github_user and github_token:
             print("Writing csv to repo", filename, csv.file)
             head_sha = save_folder_to_repo(
