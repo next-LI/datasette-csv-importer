@@ -29,14 +29,17 @@ function startOver() {
 }
 
 function show_end_screen(status_code, last_status) {
-  console.log("last_status", last_status);
+  console.log("End status", status_code, last_status);
   progressDiv.style.display = "none";
   completedDiv.style.display = "block";
   if (status_code !== 200) {
     end_area.short_txt.innerText = "Failure";
     end_area.full_txt.innerText = `Server error: ${status_code}`;
+  } else if (!!last_status.exitcode) {
+    end_area.short_txt.innerText = "Failure";
+    end_area.full_txt.innerText = last_status.message;
   } else {
-    end_area.short_txt.innerText = last_status.exitcode ? "Failure": "Success";
+    end_area.short_txt.innerText = "Success";
     end_area.full_txt.innerText = last_status.message;
     end_area.output.innerText = last_status.output;
     end_area.output.style.display = "block";
@@ -57,85 +60,75 @@ function update_progress_screen(last_status) {
 }
 
 /* {url: "/test.csv", status_database_path: "_internal", task_id: "e6dd81b4-fe1a-4f88-8d66-f1f9239ce0f6"} */
-async function poll(response_data) {
+function poll(response_data) {
   console.log("Upload Response Data", response_data);
-  const task_id = response_data.task_id;
   const status_database_path = response_data.status_database_path;
-  const status_url = `/${status_database_path}/_csv_importer_progress_.json?id=${task_id}&_shape=array`;
-
-  let status_code = 200;
-  let completed = false;
-  let last_status = {};
-  while (status_code === 200 && !completed) {
-    try {
-      let status_resp = await fetch(status_url);
-      status_code = status_resp.status;
-      let recs = await status_resp.json();
-      last_status = recs[0];
-      completed = last_status.completed;
-    } catch(e) {
-      console.log("Failure! Progress updating done.")
-      // failure!
-      break;
-    }
-    update_progress_screen(last_status);
-    await sleep(1000);
-  }
-  window.sleep = sleep;
-  // last_status = [{
-  //   "id": "c6c5353a-cff6-48db-a688-68e677747ac8",
-  //   "filename": "test.csv",
-  //   "dbname": "test",
-  //   "started": "2021-04-07 04:29:41.145045",
-  //   "completed": "2021-04-07 04:29:41.157599",
-  //   "exitcode": 0,
-  //   "status": "completed",
-  //   "message": "Import successful!"}]
-  show_end_screen(status_code, last_status);
+  const status_table = response_data.status_table;
+  const task_id = response_data.task_id;
+  const status_url = `/${status_database_path}/${status_table}.json?id=${task_id}&_shape=array`;
+  console.log("fetching status_url", status_url);
+  fetch(status_url).then((r) => r.json()).then((recs) => {
+    const status = recs[0];
+    console.log("poll status", status);
+    update_progress_screen(status);
+    if (status.completed) show_end_screen(200, status);
+    else setTimeout(poll.bind(this, response_data), 1000);
+  }).catch((e) => {
+    setTimeout(poll.bind(this, response_data), 1000);
+  });
 }
 
-// watches for a success or failure on our file upload
-function fileUploadStateChange(xhr, res, rej, e) {
-  if (xhr.readyState == 4 && xhr.status == 200) {
-    const data = JSON.parse(xhr.responseText);
-    return res(data);
-  } else if (xhr.readyState == 4 && xhr.status != 200) {
-    return rej({
-      status: xhr.status,
-      data: xhr.responseText,
-    });
-  }
-}
-
-function uploadFile(file, options) {
+function uploadFile(file, options, cb) {
   update_progress_screen({
-    "message": "Uploading file...",
+    "message": "Preparing for upload...",
   });
   show_progress_screen();
 
-  console.log("uploadFile file", file, "options", options);
-  return new Promise((res, rej) => {
-    const xhr = new XMLHttpRequest();
-    const formData = new FormData();
-    xhr.open("POST", fileInput.form.action, true);
-    xhr.addEventListener("readystatechange", fileUploadStateChange.bind(this, xhr, res, rej));
-    formData.append("xhr", "1");
-    formData.append("csrftoken", get_csrftoken());
-    Object.entries(options).forEach(([key, value], ix) => {
-      /* these don't take arguments, they are flag-only cli args */
-      if (value === true) {
-        formData.append(key, true);
-      }
-      /* false means the firld was left blank, if it's not false then
-       * we have an argument with a value! add both.
-       */
-      else if (value !== false) {
-        formData.append(key, value);
-      }
-    });
-    formData.append("csv", file);
-    xhr.send(formData);
+  const formData = new FormData();
+  formData.append("xhr", "1");
+  formData.append("csrftoken", get_csrftoken());
+  formData.append("csv", file);
+	Object.entries(options).forEach(([key, value], ix) => {
+		/* these don't take arguments, they are flag-only cli args */
+		if (value === true) {
+			formData.append(key, true);
+		}
+		/* false means the firld was left blank, if it's not false then
+			* we have an argument with a value! add both.
+			*/
+		else if (value !== false) {
+			formData.append(key, value);
+		}
+	});
+
+  const xhr = new XMLHttpRequest();
+
+  xhr.upload.addEventListener("progress", (e) => {
+    const pct_done = ((e.loaded * 100.0) / e.total || 100.0).toFixed(1);
+		update_progress_screen({
+			"message": `Uploading file (${pct_done}% done)`,
+		});
   });
+
+	xhr.addEventListener("readystatechange", (e) => {
+    console.log("readystatechange xhr.readyState", xhr.readyState, "xhr.status", xhr.status);
+    console.log("XMLHttpRequest.DONE", XMLHttpRequest.DONE);
+		if (xhr.readyState !== XMLHttpRequest.DONE) return;
+		if (xhr.status !== 200) {
+      return show_end_screen(xhr.status);
+    }
+    const data = JSON.parse(xhr.responseText);
+    // Show server-side processing progress bar
+    update_progress_screen({
+			"message": "Fetching initial CSV upload status...",
+		});
+
+    console.log("Calling cb");
+    cb(data);
+  });
+
+  xhr.open("POST", fileInput.form.action, true);
+  xhr.send(formData);
 }
 
 /**
@@ -162,7 +155,7 @@ async function handleFile(file) {
     "onSubmitValid": function (options) {
       console.log("Submitting...");
       console.log("options", options);
-      uploadFile(file, options).then(poll);
+      uploadFile(file, options, poll);
     },
   });
   dropArea.style.display = "none";

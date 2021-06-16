@@ -219,7 +219,7 @@ def set_perms_for_live_permissions(datasette, actor, db_name):
     db["group_membership"].insert({
         "user_id": user_id,
         "group_id": group_id,
-    }, pk=("group_id", "user_id"), replace=True)
+    }, pk=("group_id", "user_id"), replace=False, ignore=True)
 
 
 async def csv_importer(scope, receive, datasette, request):
@@ -281,10 +281,13 @@ async def csv_importer(scope, receive, datasette, request):
 
     outfile_db = os.path.join(get_dbpath(plugin_config), f"{basename}.db")
 
-    # TODO: check permission on outfile_db, if exists, can we overwrite it?
+    if basename in datasette.databases:
+        if not await datasette.permission_allowed(
+            request.actor, "view-database", (basename,), default=False
+        ):
+            raise Forbidden("view-database access required for existing database!")
 
     task_id = str(uuid.uuid4())
-
     def insert_initial_record(conn):
         database = sqlite_utils.Database(conn)
         database[status_table].insert(
@@ -302,17 +305,7 @@ async def csv_importer(scope, receive, datasette, request):
             pk="id",
             alter=True,
         )
-    await db.execute_write_fn(insert_initial_record)
-
-    def import_preparing(conn):
-        database = sqlite_utils.Database(conn)
-        database[status_table].update(
-            task_id,
-            {
-                "message": "Preparing import options...",
-            },
-        )
-    await db.execute_write_fn(import_preparing)
+    await db.execute_write_fn(insert_initial_record, block=True)
 
     args = []
     for key, value in formdata.items():
@@ -329,23 +322,22 @@ async def csv_importer(scope, receive, datasette, request):
         args.append(key)
         args.append(value)
 
-    def set_running(conn):
-        database = sqlite_utils.Database(conn)
-        database[status_table].update(
+    def set_status(status_database, message):
+        status_database[status_table].update(
             task_id,
             {
-                "message": "Running CSV import...",
+                "message": message,
             },
         )
-    await db.execute_write_fn(set_running)
 
     # run the command, capture its output
     def run_cli_import(conn):
+        status_database = sqlite_utils.Database(conn)
+        set_status(status_database, "Running CSV import...")
+
         exitcode = -1
         output = None
         try:
-            database = sqlite_utils.Database(conn)
-
             with tempfile.NamedTemporaryFile() as temp:
                 temp.write(csv.file.read())
                 temp.flush()
@@ -370,6 +362,7 @@ async def csv_importer(scope, receive, datasette, request):
             exitcode = -2
             message = str(e)
 
+        set_status(status_database, "Adding database to internal DB list...")
         # Adds this DB to the internel DBs list
         if basename not in datasette.databases:
             print("Adding database", basename)
@@ -388,6 +381,7 @@ async def csv_importer(scope, receive, datasette, request):
 
         csvspath = get_csvspath(plugin_config)
         if csvspath:
+            set_status(status_database, "Saving CSV to server directory...")
             csv_db_name = args[-1].replace(".db", "")
             csv_table_name = csv_db_name
             if "-t" in formdata:
@@ -401,7 +395,6 @@ async def csv_importer(scope, receive, datasette, request):
                 csvspath, f"{csv_db_name}--{csv_table_name}.json"
             )
 
-            print("Import successful! Exit:", exitcode, "Output:", output)
             # success! save our configs and CSV
             print("Writing CSV", outfile_csv)
             with open(outfile_csv, "wb") as f:
@@ -413,7 +406,7 @@ async def csv_importer(scope, receive, datasette, request):
                 f.write(json.dumps(args, indent=2))
 
         if get_use_live_metadata(plugin_config):
-            print("Using live config plugin integration...")
+            set_status(status_database, "Running live-config plugin integration...")
             # add the permission table, grant access to current user only
             # this will create the DB if not exists
             db = sqlite_utils.Database(sqlite3.connect(outfile_db))
@@ -431,7 +424,7 @@ async def csv_importer(scope, receive, datasette, request):
                 }, pk="key", alter=True, replace=False, ignore=True)
 
         if get_use_live_permissions(plugin_config):
-            print("Using live permissions plugin integration...")
+            set_status(status_database, "Running live-permissions plugin integration...")
             set_perms_for_live_permissions(datasette, request.actor, basename)
 
         # Make a commit
@@ -440,18 +433,28 @@ async def csv_importer(scope, receive, datasette, request):
         github_user = plugin_config.get("github_user")
         github_token = plugin_config.get("github_token")
         if csvspath and repo_owner and repo_name and github_user and github_token:
+            set_status(status_database, "Saving CSV to git repository...")
             print("Writing csv to repo", filename, csv.file)
-            head_sha = save_folder_to_repo(
-                folder_path=csvspath,
-                repo_owner=repo_owner,
-                repo_name=repo_name,
-                github_user=github_user,
-                github_token=github_token,
-            )
-            print(f"HEAD SHA: {head_sha}")
+            git_output = None
+            with Capturing() as git_output:
+                try:
+                    head_sha = save_folder_to_repo(
+                        folder_path=csvspath,
+                        repo_owner=repo_owner,
+                        repo_name=repo_name,
+                        github_user=github_user,
+                        github_token=github_token,
+                    )
+                    print(f"CSV successfully saved!")
+                    print(f"HEAD SHA: {head_sha}")
+                except Exception as e:
+                    print(f"Error saving using git: {e}")
+
+            output = git_output + output
 
         message = "Import successful!" if not exitcode else "Failure"
-        database[status_table].update(
+        print("Updating status", message)
+        status_database[status_table].update(
             task_id,
             {
                 "completed": str(datetime.datetime.utcnow()),
@@ -471,6 +474,7 @@ async def csv_importer(scope, receive, datasette, request):
                     filename=quote_plus(filename),
                 ),
                 "status_database_path": quote_plus(db.name),
+                "status_table": quote_plus(status_table),
                 "task_id": task_id,
             }
         )
