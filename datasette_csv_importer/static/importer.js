@@ -34,7 +34,11 @@ function show_end_screen(status_code, last_status) {
   completedDiv.style.display = "block";
   if (status_code !== 200) {
     end_area.short_txt.innerText = "Failure";
-    end_area.full_txt.innerText = `Server error: ${status_code}`;
+    if (last_status && last_status.message) {
+      end_area.full_txt.innerText = `Server error: ${last_status.message}`;
+    } else {
+      end_area.full_txt.innerText = `Server error: ${status_code}`;
+    }
   } else if (!!last_status.exitcode) {
     end_area.short_txt.innerText = "Failure";
     end_area.full_txt.innerText = last_status.message;
@@ -60,7 +64,7 @@ function update_progress_screen(last_status) {
 }
 
 /* {url: "/test.csv", status_database_path: "_internal", task_id: "e6dd81b4-fe1a-4f88-8d66-f1f9239ce0f6"} */
-function poll(response_data) {
+function poll(response_data, remaining_failures=30) {
   console.log("Upload Response Data", response_data);
   const status_database_path = response_data.status_database_path;
   const status_table = response_data.status_table;
@@ -74,6 +78,11 @@ function poll(response_data) {
     if (status.completed) show_end_screen(200, status);
     else setTimeout(poll.bind(this, response_data), 1000);
   }).catch((e) => {
+    if (!remaining_failures--) {
+      show_end_screen(500, {
+        message: e
+      });
+    }
     setTimeout(poll.bind(this, response_data), 1000);
   });
 }

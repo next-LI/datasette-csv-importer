@@ -1,7 +1,7 @@
 from setuptools import setup
 import os
 
-VERSION = "0.10.3"
+VERSION = "0.10.4"
 
 
 def get_long_description():
@@ -34,7 +34,7 @@ setup(
         "GitPython>=3.1.15,<4.0",
     ],
     extras_require={
-        "test": ["pytest", "pytest-asyncio", "asgiref", "httpx", "asgi-lifespan"]
+        "test": ["pytest", "pytest-asyncio"]
     },
     package_data={"datasette_csv_importer": [
         "static/*",
@@ -44,4 +44,5 @@ setup(
         "static/jsonform/lib/*.js",
         "templates/*"
     ]},
+    tests_require=["datasette-csv-importer[test]"],
 )
