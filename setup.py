@@ -17,7 +17,7 @@ setup(
     description="Datasette plugin for live-uploading CSV files with a user-friendly configuration UI.",
     long_description=get_long_description(),
     long_description_content_type="text/markdown",
-    author="Simon Willison",
+    author="Brandon Roberts <brandon@bxroberts.org>",
     url="https://github.com/next-LI/datasette",
     license="Apache License, Version 2.0",
     version=VERSION,
