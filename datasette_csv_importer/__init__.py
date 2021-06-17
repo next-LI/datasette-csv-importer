@@ -147,8 +147,7 @@ async def csv_importer_status(scope, receive, datasette, request):
 
     query = f"select * from {status_table} where id = ? limit 1"
     result = await db.execute(query, (request.url_vars["task_id"],))
-    run = result.first()
-    return Response.json(run)
+    return Response.json(dict(result.first()))
 
 
 def set_perms_for_live_permissions(datasette, actor, db_name):
@@ -337,6 +336,7 @@ async def csv_importer(scope, receive, datasette, request):
 
         exitcode = -1
         output = None
+        message = None
         try:
             with tempfile.NamedTemporaryFile() as temp:
                 temp.write(csv.file.read())
@@ -452,7 +452,8 @@ async def csv_importer(scope, receive, datasette, request):
 
             output = git_output + output
 
-        message = "Import successful!" if not exitcode else "Failure"
+        if not message:
+            message = "Import successful!" if not exitcode else "Failure"
         print("Updating status", message)
         status_database[status_table].update(
             task_id,

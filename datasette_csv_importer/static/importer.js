@@ -69,10 +69,9 @@ function poll(response_data, remaining_failures=30) {
   const status_database_path = response_data.status_database_path;
   const status_table = response_data.status_table;
   const task_id = response_data.task_id;
-  const status_url = `/${status_database_path}/${status_table}.json?id=${task_id}&_shape=array`;
+  const status_url = `/-/csv-importer/${task_id}`;
   console.log("fetching status_url", status_url);
-  fetch(status_url).then((r) => r.json()).then((recs) => {
-    const status = recs[0];
+  fetch(status_url).then((r) => r.json()).then((status) => {
     console.log("poll status", status);
     update_progress_screen(status);
     if (status.completed) show_end_screen(200, status);
