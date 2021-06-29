@@ -4,6 +4,7 @@ import datetime
 import io
 import json
 import os
+import re
 import sqlite3
 import sqlite_utils
 import sys
@@ -306,6 +307,10 @@ async def csv_importer(scope, receive, datasette, request):
         )
     await db.execute_write_fn(insert_initial_record, block=True)
 
+    csv_fields = [
+        "--primary-key", "--fts", "--index", "--date", "--datetime",
+        "--datetime-format"
+    ]
     args = []
     for key, value in formdata.items():
         if not key.startswith("-"):
@@ -317,6 +322,15 @@ async def csv_importer(scope, receive, datasette, request):
             args.append(key)
             continue
         if not value or value == "false":
+            continue
+        # we have a columns list field, split it up w/ dupe keys
+        # TODO: This screws up when column names have commas in them!
+        if "," in value and key in csv_fields:
+            for v in re.split(r"/,\s*/", value):
+                if not v or not v.strip():
+                    continue
+                args.append(key)
+                args.append(value)
             continue
         args.append(key)
         args.append(value)
