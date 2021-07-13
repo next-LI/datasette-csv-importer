@@ -1,5 +1,4 @@
 from urllib.parse import quote_plus
-import asyncio
 import datetime
 import io
 import json
@@ -8,7 +7,6 @@ import re
 import sqlite3
 import sqlite_utils
 import sys
-import time
 import tempfile
 import uuid
 
@@ -21,11 +19,11 @@ from starlette.requests import Request
 from .git_utils import save_folder_to_repo
 
 
-DEFAULT_STATUS_TABLE="_csv_importer_progress_"
-DEFAULT_DBPATH="."
-DEFAULT_CSVSPATH="./csvs"
-DEFAULT_LIVE_METADATA=False
-DEFAULT_USE_LIVE_PERMISSIONS=True
+DEFAULT_STATUS_TABLE = "_csv_importer_progress_"
+DEFAULT_DBPATH = "."
+DEFAULT_CSVSPATH = "./csvs"
+DEFAULT_LIVE_METADATA = False
+DEFAULT_USE_LIVE_PERMISSIONS = True
 
 
 def get_dbpath(plugin_config):
@@ -127,6 +125,7 @@ class Capturing(list):
         self._stdout = sys.stdout
         sys.stdout = self._stringio = io.StringIO()
         return self
+
     def __exit__(self, *args):
         self.extend(self._stringio.getvalue().splitlines())
         del self._stringio    # free up some memory
@@ -156,9 +155,6 @@ def set_perms_for_live_permissions(datasette, actor, db_name):
     # add the permission table, grant access to current user only
     # this will create the DB if not exists
     if not os.path.exists("live_permissions.db"):
-        return
-
-    if not actor:
         return
 
     db = sqlite_utils.Database(sqlite3.connect("live_permissions.db"))
@@ -202,18 +198,27 @@ def set_perms_for_live_permissions(datasette, actor, db_name):
 
     # find user
     user_id = None
-    for key, value in actor.items():
-        if not value:
-            continue
-        if not isinstance(value, str) and not isinstance(value, int):
-            continue
-        query = "lookup=? and value=?"
-        args = (f"actor.{key}", value)
-        for row in db["users"].rows_where(query, args):
+    if not actor:
+        # get the "anyone/everyone" user
+        query = "lookup='actor' and value is null"
+        for row in db["users"].rows_where(query):
             user_id = row["id"]
             break
+    else:
+        for key, value in actor.items():
+            if not value:
+                continue
+            if not isinstance(value, str) and not isinstance(value, int):
+                continue
+            query = "lookup=? and value=?"
+            args = (f"actor.{key}", value)
+            for row in db["users"].rows_where(query, args):
+                user_id = row["id"]
+                break
 
     print("Found User ID", user_id)
+    if user_id is None:
+        return
 
     # add user to group
     db["group_membership"].insert({
@@ -315,8 +320,6 @@ async def csv_importer(scope, receive, datasette, request):
     for key, value in formdata.items():
         if not key.startswith("-"):
             continue
-        if key in ["-t", "--table"]:
-            csv_table_name = value
         # this is a toggle/flag arg with no param
         if value is True or value == "true":
             args.append(key)
@@ -366,9 +369,9 @@ async def csv_importer(scope, receive, datasette, request):
                     )
                     if exitcode is not None:
                         exitcode = int(exitcode)
-                    # detect a failure to write DB where tool returns success code
-                    # this makes it so we don't have to read the CLI output to
-                    # figure out if the command succeeded or not
+                    # detect a failure to write DB where tool returns success
+                    # code this makes it so we don't have to read the
+                    # CLI output to figure out if the command succeeded or not
                     if not os.path.exists(outfile_db) and not exitcode:
                         exitcode = -2
         except Exception as e:
@@ -420,7 +423,9 @@ async def csv_importer(scope, receive, datasette, request):
                 f.write(json.dumps(args, indent=2))
 
         if get_use_live_metadata(plugin_config):
-            set_status(status_database, "Running live-config plugin integration...")
+            set_status(
+                status_database, "Running live-config plugin integration..."
+            )
             # add the permission table, grant access to current user only
             # this will create the DB if not exists
             db = sqlite_utils.Database(sqlite3.connect(outfile_db))
@@ -438,7 +443,10 @@ async def csv_importer(scope, receive, datasette, request):
                 }, pk="key", alter=True, replace=False, ignore=True)
 
         if get_use_live_permissions(plugin_config):
-            set_status(status_database, "Running live-permissions plugin integration...")
+            set_status(
+                status_database,
+                "Running live-permissions plugin integration..."
+            )
             set_perms_for_live_permissions(datasette, request.actor, basename)
 
         # Make a commit
@@ -446,7 +454,7 @@ async def csv_importer(scope, receive, datasette, request):
         repo_name = plugin_config.get("repo_name")
         github_user = plugin_config.get("github_user")
         github_token = plugin_config.get("github_token")
-        if csvspath and repo_owner and repo_name and github_user and github_token:
+        if all([csvspath, repo_owner, repo_name, github_user, github_token]):
             set_status(status_database, "Saving CSV to git repository...")
             print("Writing csv to repo", filename, csv.file)
             git_output = None
@@ -468,6 +476,7 @@ async def csv_importer(scope, receive, datasette, request):
 
         if not message:
             message = "Import successful!" if not exitcode else "Failure"
+
         print("Updating status", message)
         status_database[status_table].update(
             task_id,
