@@ -51,7 +51,7 @@ The plugin adds an interface at `/-/csv-importer` for importing a CSV file. Once
 
 ## Permissions
 
-This plugin uses Datasette's permissioning system. Granting actors the `csv-importer` permission will allow actors to import CSVs.
+This plugin uses Datasette's permissioning system. Granting actors the `csv-importer` permission will allow access to CSV importing. The `root` actor is granted access by default.
 
 ## Development
 
