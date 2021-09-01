@@ -13,6 +13,7 @@ const end_area = {
   output: document.querySelector("#completed .output"),
   db_link: document.querySelector("#to-db")
 };
+const POLL_SECONDS = 5000;
 
 function get_csrftoken() {
   return document.querySelector('input[name="csrftoken"]').value;
@@ -71,7 +72,6 @@ function get_base_url() {
   return window.DATASETTE_BASE_URL;
 }
 
-
 /* {url: "/test.csv", status_database_path: "_internal", task_id: "e6dd81b4-fe1a-4f88-8d66-f1f9239ce0f6"} */
 function poll(response_data, remaining_failures=30) {
   console.log("Upload Response Data", response_data);
@@ -85,14 +85,14 @@ function poll(response_data, remaining_failures=30) {
     console.log("poll status", status);
     update_progress_screen(status);
     if (status.completed) show_end_screen(200, status);
-    else setTimeout(poll.bind(this, response_data), 1000);
+    else setTimeout(poll.bind(this, response_data), POLL_SECONDS);
   }).catch((e) => {
     if (!remaining_failures--) {
       show_end_screen(500, {
         message: e
       });
     }
-    setTimeout(poll.bind(this, response_data), 1000);
+    setTimeout(poll.bind(this, response_data), POLL_SECONDS);
   });
 }
 
