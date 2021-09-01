@@ -26,7 +26,8 @@ It accepts the following configuration in your `metadata.json` file:
         "datasette-csv-importer": {
           "status_table": "_csv_importer_progress_",
           "status_database": "_internal",
-          "database_path": "/data"
+          "database_path": "/data",
+          "csvs_path": "/data/csvs"
         },
         ... the rest of your plugins configuration ...
       }
@@ -47,6 +48,10 @@ Details on the configuration:
 **tl;dr**: Go to `/-/csv-importer`, select a CSV, choose import options, click submit 💥 and your data is live on the dashboard!
 
 The plugin adds an interface at `/-/csv-importer` for importing a CSV file. Once you drag and drop a CSV file, you'll be shown a set of options for importing your data into Datasette using the [CSVs-to-SQlite](https://github.com/simonw/csvs-to-sqlite) tool. Clicking "Submit" below will start the import process and you'll be given information about success or failure.
+
+## Permissions
+
+This plugin uses Datasette's permissioning system. Granting actors the `csv-importer` permission will allow actors to import CSVs.
 
 ## Development
 

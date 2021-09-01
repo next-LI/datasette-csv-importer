@@ -63,13 +63,23 @@ function update_progress_screen(last_status) {
   document.querySelector("#progress .status-message").innerText = last_status.message;
 }
 
+/**
+ * Gets the datasette "base_url" setting, which is actually
+ * not a URL, but a path prefix, e.g., /datasette
+ */
+function get_base_url() {
+  return window.DATASETTE_BASE_URL;
+}
+
+
 /* {url: "/test.csv", status_database_path: "_internal", task_id: "e6dd81b4-fe1a-4f88-8d66-f1f9239ce0f6"} */
 function poll(response_data, remaining_failures=30) {
   console.log("Upload Response Data", response_data);
   const status_database_path = response_data.status_database_path;
   const status_table = response_data.status_table;
   const task_id = response_data.task_id;
-  const status_url = `/-/csv-importer/${task_id}`;
+  const base_url = get_base_url();
+  const status_url = `${base_url}/-/csv-importer/${task_id}`;
   console.log("fetching status_url", status_url);
   fetch(status_url).then((r) => r.json()).then((status) => {
     console.log("poll status", status);

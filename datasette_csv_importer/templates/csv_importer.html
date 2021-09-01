@@ -73,7 +73,7 @@ progress::-webkit-progress-value {
     <progress class="progress" value="0" max="100">Uploading...</progress>
   </div>
 
-  <form id="file-form" action="/-/csv-importer" method="post" enctype="multipart/form-data">
+  <form id="file-form" action="{{ base_url }}/-/csv-importer" method="post" enctype="multipart/form-data">
     <div id="file-drop">
       <input type="file" name="csv" id="csvUpload">
       <label for="csvUpload">Select a file to upload or drag and drop one here</label>
@@ -81,7 +81,7 @@ progress::-webkit-progress-value {
     <input type="hidden" name="csrftoken" value="{{csrftoken()}}" />
   </form>
 
-  <form id="import-config" action="/-/csv-importer" method="post">
+  <form id="import-config" action="{{ base_url }}/-/csv-importer" method="post">
   </form>
 
   <div id="progress" style="display: none">
@@ -102,10 +102,11 @@ progress::-webkit-progress-value {
 </div>
 
 <script id="schema" type="application/json">{% include 'schema.json' %}</script>
-<script type="text/javascript" src="/-/static-plugins/datasette-csv-importer/jsonform/deps/jquery.min.js"></script>
-<script type="text/javascript" src="/-/static-plugins/datasette-csv-importer/jsonform/deps/underscore.js"></script>
+<script type="text/javascript">window.DATASETTE_BASE_URL = "{{ base_url }}";</script>
+<script type="text/javascript" src="{{ base_url }}/-/static-plugins/datasette-csv-importer/jsonform/deps/jquery.min.js"></script>
+<script type="text/javascript" src="{{ base_url }}/-/static-plugins/datasette-csv-importer/jsonform/deps/underscore.js"></script>
 <!--<script type="text/javascript" src="/-/static-plugins/datasette-csv-importer/jsonform/deps/opt/jsv.js"></script>-->
-<script type="text/javascript" src="/-/static-plugins/datasette-csv-importer/jsonform/lib/jsonform.js"></script>
-<script type="text/javascript" src="/-/static-plugins/datasette-csv-importer/importer.js"></script>
+<script type="text/javascript" src="{{ base_url }}/-/static-plugins/datasette-csv-importer/jsonform/lib/jsonform.js"></script>
+<script type="text/javascript" src="{{ base_url }}/-/static-plugins/datasette-csv-importer/importer.js"></script>
 
 {% endblock %}

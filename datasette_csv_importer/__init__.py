@@ -16,8 +16,6 @@ from datasette.database import Database
 from datasette.utils.asgi import Response, Forbidden
 from starlette.requests import Request
 
-from .git_utils import save_folder_to_repo
-
 
 DEFAULT_STATUS_TABLE = "_csv_importer_progress_"
 DEFAULT_DBPATH = "."
@@ -151,14 +149,18 @@ async def csv_importer_status(scope, receive, datasette, request):
 
 
 def set_perms_for_live_permissions(datasette, actor, db_name):
-    # TODO: pull from live-config plugin config to get db path
-    # add the permission table, grant access to current user only
-    # this will create the DB if not exists
-    if not os.path.exists("live_permissions.db"):
+    try:
+        from datasette_live_permissions import get_db_path
+    except Exception as e:
+        print("Error while loading live permissions module:", e)
+        print("Not completing integrating with plugin.")
         return
 
-    db = sqlite_utils.Database(sqlite3.connect("live_permissions.db"))
+    perms_db_path = get_db_path(datasette)
+    if not os.path.exists(perms_db_path):
+        return
 
+    db = sqlite_utils.Database(sqlite3.connect(perms_db_path))
     group_name = f"DB Access: {db_name}"
     db["groups"].insert({
         "name": group_name,
@@ -449,31 +451,6 @@ async def csv_importer(scope, receive, datasette, request):
             )
             set_perms_for_live_permissions(datasette, request.actor, basename)
 
-        # Make a commit
-        repo_owner = plugin_config.get("repo_owner")
-        repo_name = plugin_config.get("repo_name")
-        github_user = plugin_config.get("github_user")
-        github_token = plugin_config.get("github_token")
-        if all([csvspath, repo_owner, repo_name, github_user, github_token]):
-            set_status(status_database, "Saving CSV to git repository...")
-            print("Writing csv to repo", filename, csv.file)
-            git_output = None
-            with Capturing() as git_output:
-                try:
-                    head_sha = save_folder_to_repo(
-                        folder_path=csvspath,
-                        repo_owner=repo_owner,
-                        repo_name=repo_name,
-                        github_user=github_user,
-                        github_token=github_token,
-                    )
-                    print(f"CSV successfully saved!")
-                    print(f"HEAD SHA: {head_sha}")
-                except Exception as e:
-                    print(f"Error saving using git: {e}")
-
-            output = git_output + output
-
         if not message:
             message = "Import successful!" if not exitcode else "Failure"
 
@@ -494,9 +471,9 @@ async def csv_importer(scope, receive, datasette, request):
     if formdata.get("xhr"):
         return Response.json(
             {
-                "url": "/{filename}".format(
+                "url": datasette.urls.path("/{filename}".format(
                     filename=quote_plus(filename),
-                ),
+                )),
                 "status_database_path": quote_plus(db.name),
                 "status_table": quote_plus(status_table),
                 "task_id": task_id,
