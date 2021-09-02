@@ -54,7 +54,10 @@ def get_csvspath(plugin_config):
     Get the path where to save the uploaded CSV files and import config.
     Default: ./csvs
     """
-    return plugin_config.get("csvs_path", DEFAULT_CSVSPATH)
+    csvs_path = plugin_config.get("csvs_path", DEFAULT_CSVSPATH)
+    if not os.path.exists(csvs_path):
+        os.makedirs(csvs_path)
+    return csvs_path
 
 
 def get_status_table(plugin_config):
@@ -160,14 +163,14 @@ def set_perms_for_live_permissions(datasette, actor, db_name):
     if not os.path.exists(perms_db_path):
         return
 
-    db = sqlite_utils.Database(sqlite3.connect(perms_db_path))
+    perms_db = sqlite_utils.Database(sqlite3.connect(perms_db_path))
     group_name = f"DB Access: {db_name}"
-    db["groups"].insert({
+    perms_db["groups"].insert({
         "name": group_name,
     }, pk="id", replace=True)
 
     group_id = None
-    for row in db["groups"].rows_where('name=?', (group_name,)):
+    for row in perms_db["groups"].rows_where('name=?', (group_name,)):
         group_id = row["id"]
         break
 
@@ -185,15 +188,15 @@ def set_perms_for_live_permissions(datasette, actor, db_name):
     }]
     for ar_data in group_action_resources:
         print("Adding A/R:", ar_data)
-        db["actions_resources"].insert(ar_data, pk="id", replace=True)
+        perms_db["actions_resources"].insert(ar_data, pk="id", replace=True)
         query = 'action=:action and resource_primary=:resource_primary'
         args = tuple(ar_data.values())
         ar_id = None
-        for row in db["actions_resources"].rows_where(query, args):
+        for row in perms_db["actions_resources"].rows_where(query, args):
             ar_id = row["id"]
             break
         print("A/R ID", ar_id)
-        db["permissions"].insert({
+        perms_db["permissions"].insert({
             "group_id": group_id,
             "actions_resources_id": ar_id
         }, pk="id", alter=False, replace=True)
@@ -203,7 +206,7 @@ def set_perms_for_live_permissions(datasette, actor, db_name):
     if not actor:
         # get the "anyone/everyone" user
         query = "lookup='actor' and value is null"
-        for row in db["users"].rows_where(query):
+        for row in perms_db["users"].rows_where(query):
             user_id = row["id"]
             break
     else:
@@ -214,7 +217,7 @@ def set_perms_for_live_permissions(datasette, actor, db_name):
                 continue
             query = "lookup=? and value=?"
             args = (f"actor.{key}", value)
-            for row in db["users"].rows_where(query, args):
+            for row in perms_db["users"].rows_where(query, args):
                 user_id = row["id"]
                 break
 
@@ -223,7 +226,7 @@ def set_perms_for_live_permissions(datasette, actor, db_name):
         return
 
     # add user to group
-    db["group_membership"].insert({
+    perms_db["group_membership"].insert({
         "user_id": user_id,
         "group_id": group_id,
     }, pk=("group_id", "user_id"), replace=False, ignore=True)
@@ -430,12 +433,12 @@ async def csv_importer(scope, receive, datasette, request):
             )
             # add the permission table, grant access to current user only
             # this will create the DB if not exists
-            db = sqlite_utils.Database(sqlite3.connect(outfile_db))
+            out_db = sqlite_utils.Database(sqlite3.connect(outfile_db))
             try:
-                db["__metadata"].get("allow")
+                out_db["__metadata"].get("allow")
             except sqlite_utils.db.NotFoundError:
                 # don't overwrite, only create
-                db["__metadata"].insert({
+                out_db["__metadata"].insert({
                     "key": "tables",
                     "value": json.dumps({
                         "__metadata": {
