@@ -83,7 +83,7 @@ def get_status_database(datasette, plugin_config):
         return datasette.databases[database]
     except KeyError:
         pass
-    database_path = os.path.join(DEFAULT_DBPATH, f"{database}.db")
+    database_path = os.path.join(get_dbpath(plugin_config), f"{database}.db")
     sqlite3.connect(database_path)
     datasette.add_database(
         Database(datasette, path=database_path, is_mutable=True),
@@ -159,23 +159,29 @@ def set_perms_for_live_permissions(datasette, actor, db_name):
         print("Not completing integrating with plugin.")
         return
 
+    print("Getting DB path...")
     perms_db_path = get_db_path(datasette)
+    print("Got perms_db_path", perms_db_path)
     if not os.path.exists(perms_db_path):
+        print("Doesn't exist!")
         return
 
     perms_db = sqlite_utils.Database(sqlite3.connect(perms_db_path))
+    print("perms_db", perms_db)
     group_name = f"DB Access: {db_name}"
+    print("Inserting group:", group_name)
     perms_db["groups"].insert({
         "name": group_name,
     }, pk="id", replace=True)
+    print("Insert completed!")
 
+    print("Fetching group_id")
     group_id = None
     for row in perms_db["groups"].rows_where('name=?', (group_name,)):
         group_id = row["id"]
         break
 
     print("Group ID", group_id)
-
     group_action_resources = [{
         "action": "view-database",
         "resource_primary": db_name,
@@ -200,7 +206,9 @@ def set_perms_for_live_permissions(datasette, actor, db_name):
             "group_id": group_id,
             "actions_resources_id": ar_id
         }, pk="id", alter=False, replace=True)
+    print("Done adding all group-action resources!")
 
+    print("Finding user ID")
     # find user
     user_id = None
     if not actor:
@@ -226,10 +234,12 @@ def set_perms_for_live_permissions(datasette, actor, db_name):
         return
 
     # add user to group
+    print("Adding user to group!")
     perms_db["group_membership"].insert({
         "user_id": user_id,
         "group_id": group_id,
     }, pk=("group_id", "user_id"), replace=False, ignore=True)
+    print("Done!")
 
 
 async def csv_importer(scope, receive, datasette, request):
@@ -344,6 +354,7 @@ async def csv_importer(scope, receive, datasette, request):
         args.append(value)
 
     def set_status(conn, message):
+        print("Setting status", message)
         status_database = sqlite_utils.Database(conn)
         status_database[status_table].update(
             task_id,
@@ -351,6 +362,7 @@ async def csv_importer(scope, receive, datasette, request):
                 "message": message,
             },
         )
+        print("Successfully set status!")
 
     # run the command, capture its output
     def run_cli_import(conn):
@@ -428,11 +440,13 @@ async def csv_importer(scope, receive, datasette, request):
                 f.write(json.dumps(args, indent=2))
 
         if get_use_live_metadata(plugin_config):
+            print("Running live-config integration...")
             set_status(
                 conn, "Running live-config plugin integration..."
             )
             # add the permission table, grant access to current user only
             # this will create the DB if not exists
+            print("Opening DB:", outfile_db)
             out_db = sqlite_utils.Database(sqlite3.connect(outfile_db))
             try:
                 out_db["__metadata"].get("allow")
@@ -448,11 +462,14 @@ async def csv_importer(scope, receive, datasette, request):
                 }, pk="key", alter=True, replace=False, ignore=True)
 
         if get_use_live_permissions(plugin_config):
+            print("Setting live-permissions plugin status...")
             set_status(
                 conn,
                 "Running live-permissions plugin integration..."
             )
+            print("Running set_perms_for_live_permissions with basename:", basename)
             set_perms_for_live_permissions(datasette, request.actor, basename)
+            print("set_perms_for_live_permissions complete!")
 
         if not message:
             message = "Import successful!" if not exitcode else "Failure"
