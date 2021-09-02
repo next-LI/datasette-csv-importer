@@ -151,16 +151,15 @@ async def csv_importer_status(scope, receive, datasette, request):
     return Response.json(dict(result.first()))
 
 
-def set_perms_for_live_permissions(datasette, actor, db_name):
-    try:
-        from datasette_live_permissions import get_db_path
-    except Exception as e:
-        print("Error while loading live permissions module:", e)
-        print("Not completing integrating with plugin.")
-        return
+def get_live_permissions_db_path(datasette):
+    config = datasette.plugin_config("datasette-live-permissions") or {}
+    default_db_path = config.get("db_path", DEFAULT_DBPATH)
+    return os.path.join(default_db_path, f"live_permissions.db")
 
+
+def set_perms_for_live_permissions(datasette, actor, db_name):
     print("Getting DB path...")
-    perms_db_path = get_db_path(datasette)
+    perms_db_path = get_live_permissions_db_path(datasette)
     print("Got perms_db_path", perms_db_path)
     if not os.path.exists(perms_db_path):
         print("Doesn't exist!")
