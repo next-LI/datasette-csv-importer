@@ -19,6 +19,14 @@ function get_csrftoken() {
   return document.querySelector('input[name="csrftoken"]').value;
 }
 
+/**
+ * Gets the datasette "base_url" setting, which is actually
+ * not a URL, but a path prefix, e.g., /datasette
+ */
+function get_base_url() {
+  return window.DATASETTE_BASE_URL;
+}
+
 function sleep(milliseconds) {
   return new Promise(resolve => setTimeout(resolve, milliseconds))
 }
@@ -48,7 +56,8 @@ function show_end_screen(status_code, last_status) {
     end_area.full_txt.innerText = last_status.message;
     end_area.output.innerText = last_status.output;
     end_area.output.style.display = "block";
-    end_area.db_link.setAttribute("href", `/${last_status.dbname}`);
+    const base_url = get_base_url();
+    end_area.db_link.setAttribute("href", `${base_url}${last_status.dbname}`);
     end_area.db_link.innerText = "Click here to go to imported database →";
     end_area.db_link.style.display = "block";
   }
@@ -62,14 +71,6 @@ function show_progress_screen() {
 function update_progress_screen(last_status) {
   console.log("Status", last_status);
   document.querySelector("#progress .status-message").innerText = last_status.message;
-}
-
-/**
- * Gets the datasette "base_url" setting, which is actually
- * not a URL, but a path prefix, e.g., /datasette
- */
-function get_base_url() {
-  return window.DATASETTE_BASE_URL;
 }
 
 /* {url: "/test.csv", status_database_path: "_internal", task_id: "e6dd81b4-fe1a-4f88-8d66-f1f9239ce0f6"} */
