@@ -299,9 +299,13 @@ async def csv_importer(scope, receive, datasette, request):
     outfile_db = os.path.join(get_dbpath(plugin_config), f"{basename}.db")
 
     if basename in datasette.databases:
-        if not await datasette.permission_allowed(
+        global_access = await datasette.permission_allowed(
+            request.actor, "view-database", default=False
+        )
+        specific_access = await datasette.permission_allowed(
             request.actor, "view-database", (basename,), default=False
-        ):
+        )
+        if not specific_access and not global_access:
             raise Forbidden("view-database access required for existing database!")
 
     task_id = str(uuid.uuid4())
