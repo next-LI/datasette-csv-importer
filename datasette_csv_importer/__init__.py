@@ -343,7 +343,8 @@ async def csv_importer(scope, receive, datasette, request):
         args.append(key)
         args.append(value)
 
-    def set_status(status_database, message):
+    def set_status(conn, message):
+        status_database = sqlite_utils.Database(conn)
         status_database[status_table].update(
             task_id,
             {
@@ -353,8 +354,7 @@ async def csv_importer(scope, receive, datasette, request):
 
     # run the command, capture its output
     def run_cli_import(conn):
-        status_database = sqlite_utils.Database(conn)
-        set_status(status_database, "Running CSV import...")
+        set_status(conn, "Running CSV import...")
 
         exitcode = -1
         output = None
@@ -384,7 +384,7 @@ async def csv_importer(scope, receive, datasette, request):
             exitcode = -2
             message = str(e)
 
-        set_status(status_database, "Adding database to internal DB list...")
+        set_status(conn, "Adding database to internal DB list...")
         # Adds this DB to the internel DBs list
         if basename not in datasette.databases:
             print("Adding database", basename)
@@ -403,7 +403,7 @@ async def csv_importer(scope, receive, datasette, request):
 
         csvspath = get_csvspath(plugin_config)
         if csvspath:
-            set_status(status_database, "Saving CSV to server directory...")
+            set_status(conn, "Saving CSV to server directory...")
             csv_db_name = args[-1].replace(".db", "")
             csv_table_name = csv_db_name
             if "-t" in formdata:
@@ -429,7 +429,7 @@ async def csv_importer(scope, receive, datasette, request):
 
         if get_use_live_metadata(plugin_config):
             set_status(
-                status_database, "Running live-config plugin integration..."
+                conn, "Running live-config plugin integration..."
             )
             # add the permission table, grant access to current user only
             # this will create the DB if not exists
@@ -449,7 +449,7 @@ async def csv_importer(scope, receive, datasette, request):
 
         if get_use_live_permissions(plugin_config):
             set_status(
-                status_database,
+                conn,
                 "Running live-permissions plugin integration..."
             )
             set_perms_for_live_permissions(datasette, request.actor, basename)
