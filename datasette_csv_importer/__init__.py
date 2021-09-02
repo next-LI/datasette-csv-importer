@@ -472,6 +472,7 @@ async def csv_importer(scope, receive, datasette, request):
             message = "Import successful!" if not exitcode else "Failure"
 
         print("Updating status", message)
+        status_database = sqlite_utils.Database(conn)
         status_database[status_table].update(
             task_id,
             {
