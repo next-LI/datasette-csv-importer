@@ -152,9 +152,7 @@ async def csv_importer_status(scope, receive, datasette, request):
 
 
 def get_live_permissions_db_path(datasette):
-    config = datasette.plugin_config("datasette-live-permissions") or {}
-    default_db_path = config.get("db_path", DEFAULT_DBPATH)
-    return os.path.join(default_db_path, f"live_permissions.db")
+    return datasette.databases["live_permissions"].path
 
 
 def set_perms_for_live_permissions(datasette, actor, db_name):
