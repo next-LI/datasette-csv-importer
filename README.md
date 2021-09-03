@@ -6,6 +6,16 @@ This plugin was inspired by the [datasette-upload-csvs](https://github.com/simon
 
 ## Installation
 
+Via Datasette:
+
+    datasette install git+https://github.com/next-LI/datasette-csv-importer.git
+
+Or a specific version:
+
+    datasette install git+https://github.com/next-LI/datasette-csv-importer.git@v1.0.4
+
+## Development Installation
+
 This repository uses submodules:
 
     git clone --recursive https://github.com/next-LI/datasette-csv-importer
