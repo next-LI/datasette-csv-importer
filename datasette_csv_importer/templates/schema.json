@@ -7,7 +7,7 @@
       "type": "string",
       "title": "Table name",
       "description": "Table to use (instead of using CSV filename)",
-      "required": true,
+      "required": true
     },
     "database": {
       "type": "string",
