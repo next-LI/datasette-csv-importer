@@ -1,8 +1,5 @@
 [{
     "key": "--table",
-    "type": "password"
-},{
-    "key": "--table",
 },{
     "key": "database",
 },{
