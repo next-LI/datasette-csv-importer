@@ -1,38 +1,6 @@
-[{
-    "key": "--table"
-},{
-    "key": "database"
-},{
-    "key": "--skip-errors"
-},{
-    "key": "--replace-tables"
-},{
-    "key": "--primary-key"
-},{
-    "key": "--fts"
-},{
-    "key": "--index"
-},{
-    "key": "--date"
-},{
-    "key": "--datetime"
-},{
-    "key": "--datetime-format"
-},{
-    "key": "--just-strings"
-},{
-    "key": "--filename-column"
-},{
-    "key": "--separator"
-},{
-    "key": "--quoting"
-},{
-    "key": "--extract-column"
-},{
-    "key": "--shape"
-},{
-    "key": "--no-index-fks"
-},{
-    "key": "--no-fulltext-fks"
-}]
+["*",
+    {
+      "type": "submit",
+      "title": "OK Go - This Too Shall Pass"
+    }]
 
