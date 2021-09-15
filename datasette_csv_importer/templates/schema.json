@@ -7,7 +7,8 @@
       "type": "string",
       "title": "Table name",
       "description": "Table to use (instead of using CSV filename)",
-      "required": true
+      "required": true,
+      "fieldHtmlClass": "bg-blue"
     },
     "database": {
       "type": "string",
