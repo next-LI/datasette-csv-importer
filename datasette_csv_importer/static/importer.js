@@ -158,6 +158,13 @@ function getSchema() {
 }
 
 /**
+ * This pulls the JSON that we're storing as form.json
+ */
+ function getForm() {
+  return JSON.parse(document.getElementById('form').innerHTML);
+}
+
+/**
  * This handles a file selected/dropped. From here, we
  * render the JSON schema form builder and setup the
  * final submit button callback to `uploadFile`.
@@ -165,9 +172,12 @@ function getSchema() {
 async function handleFile(file) {
   console.log("Handling file", file);
   const schema = getSchema();
+  const form = getForm();
   console.log("schema", schema);
+  console.log("form", form);
   $('form#import-config').jsonForm({
     "schema": schema,
+    "form": form,
     "value": {
       "--table": file.name.replace(".csv", ""),
     },
