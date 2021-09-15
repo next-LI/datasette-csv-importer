@@ -67,6 +67,8 @@ This plugin uses Datasette's permissioning system. Granting actors the `csv-impo
 
 There's two parts to this plugin: converting the CSV importer CLI tool's arguments list to a JSON schema which renders a form (this is mostly done by hand and ends up in `templates/schema.json` and the webapp that does the actual import.
 
+Form configuration can be done via the form schema in `templates/form.json` and documentation for supported options [are here](https://github.com/jsonform/jsonform/wiki)
+
 ### KNOWN ISSUES
 
 There's an async race condition that can sometimes be triggered when uploading and inserting a new database. You'll get a 500 error and a console traceback like the following:

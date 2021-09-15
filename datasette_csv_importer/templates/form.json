@@ -1,6 +1,5 @@
-["*",
-    {
-      "type": "submit",
-      "title": "OK Go - This Too Shall Pass"
-    }]
+["*", {
+  "type": "submit",
+  "title": "Upload data"
+}]
 
